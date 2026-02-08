@@ -69,8 +69,15 @@ def get_status(node_id:int, db:str = "nodes.db") -> str:
     except IndexError:
         return ""
 
+def in_db(node_id:int, db:str = "nodes.db") -> bool:
+    if get_status(node_id, db) != "":
+        return True
+    return False
 
-'''t = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-ex_vals = (t,5,33.4113, -111.913,"Offline")
 
-print_db()'''
+if __name__ == "__main__":
+    t = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ex_vals = (t,3,33.41946454694378, -111.93544878156348,"ALERT")
+    add_to_db(ex_vals)
+    print_db()
+

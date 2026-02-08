@@ -1,68 +1,94 @@
-import sys
+import os
 import io
+from PyQt5.QtCore import QUrl
+from PyQt5.QtWidgets import QWidget, QVBoxLayout
+from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 import folium
 import database
-from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QVBoxLayout
-from PyQt5.QtWebEngineWidgets import QWebEngineView
-
 
 class MapDisplay(QWidget):
-    def __init__(self,node_ids:list,center_coord:tuple):
+
+    def __init__(self, node_ids: list, center_coord: tuple):
         super().__init__()
+
         self.nodes = node_ids
-        self.setWindowTitle("Map")
-        self.window_width, self.window_height = 1600, 1200
-        self.setMinimumSize(self.window_width, self.window_height)
+        self.coordinate = center_coord
+
+        self.setWindowTitle("SafeTrack Map")
+        self.setMinimumSize(800, 600)
+
+        # Layout
         layout = QVBoxLayout()
         self.setLayout(layout)
 
+        # Folium map
+        self.m = self.create_map()#folium.Map(location=self.coordinate, zoom_start=14)
+        self.update_map()  # initial markers
 
-        self.coordinate = center_coord
+        # WebEngineView
+        self.webView = QWebEngineView()
+        self.webView = QWebEngineView()
+
+        settings = self.webView.settings()
+        settings.setAttribute(QWebEngineSettings.LocalContentCanAccessFileUrls, True)
+        settings.setAttribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls, True)
+
+        self.refresh_view()
+        layout.addWidget(self.webView)
+
+    def create_map(self):
+        tile_path = os.path.abspath("tiles").replace("\\", "/")
+
         m = folium.Map(
-            title = 'SafeTrack',
-            zoom_start=14,
-            location=self.coordinate
+            location=self.coordinate,
+            zoom_start=11,
+            #min_zoom=10,
+            #max_zoom=16,
+            tiles=None,
+            attributionControl = False
         )
-        self.update_map(self.nodes, m)
 
-        data = io.BytesIO()
-        m.save(data, close_file=False)
+        folium.TileLayer(
+            tiles=f"file:///{tile_path}/{{z}}/{{x}}/{{y}}.png",
+            attr="Offline Map",
+            control=False
+        ).add_to(m)
 
-        webView = QWebEngineView()
-        webView.setHtml(data.getvalue().decode())
-        layout.addWidget(webView)
+        return m
 
-    def update_map(self,node_ids:list,m) -> None:
-        for node in node_ids:
-            popup_color = 'green'
-            cur_gps = database.get_GPS(node)
+    def update_map(self):
+        # Create a fresh map
+        self.m = self.create_map()
+
+        for node in self.nodes:
             try:
-                if database.get_status(node) == "ALERT":
-                    popup_color = 'red'
-                    folium.Circle(
-                        radius = 100,
-                        location = cur_gps,
-                        color = 'crimson',
-                        fill = True
-                    ).add_to(m)
+                cur_gps = database.get_GPS(node)
+                icon_img = os.path.abspath("images/green_icon.png")
 
+                if database.get_status(node) == "ALERT":
+                    icon_img = os.path.abspath("images/red_icon.png")
+                    folium.Circle(
+                        radius=100,
+                        location=cur_gps,
+                        color='crimson',
+                        fill=True
+                    ).add_to(self.m)
                 folium.Marker(
-                    database.get_GPS(node),
-                    popup = f"Node {node}: {cur_gps}",
-                    icon = folium.Icon(color = popup_color,icon = 'info-sign')
-                ).add_to(m)
+                    location=cur_gps,
+                    popup=f"Node {node}: {cur_gps}",
+                    icon=folium.CustomIcon(icon_img,icon_size=(50,50))
+                ).add_to(self.m)
+
             except ValueError:
-                print(f"***ERROR: Node {node} Does Not Exist***")
+                print(f"***ERROR: Node {node} does not exist***")
                 continue
 
+    def refresh_view(self):
+        data = io.BytesIO()
+        self.m.save(data, close_file=False)
 
-app = QApplication(sys.argv)
+        html = data.getvalue().decode()
 
-"""app.setStyleSheet('''
-    QWidget{
-        font-size: 35px;
-    }
-''')"""
-myApp = MapDisplay(["1","2","3","5"],(33.415216, -111.928240))
-myApp.show()
-sys.exit(app.exec_())
+        base_url = QUrl.fromLocalFile(os.getcwd() + "/")
+
+        self.webView.setHtml(html, base_url)

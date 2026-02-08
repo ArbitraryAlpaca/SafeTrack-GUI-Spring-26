@@ -1,1 +1,5 @@
 .venv/
+.db
+node_ids.txt
+.env
+tiles/
