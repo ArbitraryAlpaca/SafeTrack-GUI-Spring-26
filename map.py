@@ -1,8 +1,9 @@
 import os
 import io
-from PyQt5.QtCore import QUrl
-from PyQt5.QtWidgets import QWidget, QVBoxLayout
-from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
+from PyQt6.QtCore import QUrl
+from PyQt6.QtWidgets import QWidget, QVBoxLayout
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWebEngineCore import QWebEngineSettings
 import folium
 import database
 
@@ -23,15 +24,14 @@ class MapDisplay(QWidget):
 
         # Folium map
         self.m = self.create_map()#folium.Map(location=self.coordinate, zoom_start=14)
-        self.update_map()  # initial markers
+        self.update_map()
 
-        # WebEngineView
         self.webView = QWebEngineView()
         self.webView = QWebEngineView()
 
         settings = self.webView.settings()
-        settings.setAttribute(QWebEngineSettings.LocalContentCanAccessFileUrls, True)
-        settings.setAttribute(QWebEngineSettings.LocalContentCanAccessRemoteUrls, True)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
 
         self.refresh_view()
         layout.addWidget(self.webView)
@@ -57,7 +57,6 @@ class MapDisplay(QWidget):
         return m
 
     def update_map(self):
-        # Create a fresh map
         self.m = self.create_map()
 
         for node in self.nodes:

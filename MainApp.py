@@ -1,13 +1,12 @@
 import sys
-
-from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import QSize
-from PyQt5.QtWidgets import (
+from PyQt6.QtGui import QIcon
+from PyQt6.QtCore import QSize
+from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QHBoxLayout, QVBoxLayout,
     QPushButton, QLabel, QFrame, QStackedLayout
 )
-from PyQt5.QtCore import Qt
+from PyQt6.QtCore import Qt
 from map import MapDisplay
 from addNode import AddNodePage
 
@@ -137,7 +136,7 @@ class MainWindow(QMainWindow):
             page = QFrame()
             layout = QVBoxLayout(page)
             label_widget = QLabel(f"{label} screen (blank)")
-            label_widget.setAlignment(Qt.AlignCenter)
+            label_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(label_widget)
             self.stacked_layout.addWidget(page)
             self.blank_pages[obj_name] = page
@@ -166,4 +165,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
