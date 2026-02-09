@@ -9,7 +9,7 @@ load_dotenv()
 API_KEY = os.getenv("SECRET_KEY") # create .env file with your maptiler api key saved to SECRET_KEY variable
 BBOX = (-111.98, 33.38, -111.87, 33.46) #(West, South, East, North) or (x_min, y_min, x_max, y_max) box to bound region to download
 
-ZOOM_LEVELS = [9] # the higher the number the closer the zoom ((10 - 15) typical range)
+ZOOM_LEVELS = [17] # the higher the number the closer the zoom ((10 - 15) typical range)
 
 TILE_URL = (
     "https://api.maptiler.com/maps/streets/{z}/{x}/{y}.png"

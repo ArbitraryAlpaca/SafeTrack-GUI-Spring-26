@@ -1,14 +1,16 @@
 import sys
+
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import QSize
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QHBoxLayout, QVBoxLayout,
     QPushButton, QLabel, QFrame, QStackedLayout
 )
-from PyQt6.QtCore import Qt
 from map import MapDisplay
 from addNode import AddNodePage
+from notification import NotificationsPage
+from backend_worker import BackendWorker
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -133,16 +135,27 @@ class MainWindow(QMainWindow):
 
         # ----- BLANK PAGES FOR OTHER BUTTONS -----
         for idx, (obj_name, label) in enumerate(self.sidebar_buttons_info[1:], start=1):
-            page = QFrame()
-            layout = QVBoxLayout(page)
-            label_widget = QLabel(f"{label} screen (blank)")
-            label_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(label_widget)
+            # Replace the Notifications blank page with the real NotificationsPage
+            if obj_name == "btnNotifications":
+                page = NotificationsPage()
+                page.load_notifications()  # load notifications on init
+            else:
+                page = QFrame()
+                layout = QVBoxLayout(page)
+                label_widget = QLabel(f"{label} screen (blank)")
+                label_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                layout.addWidget(label_widget)
+
             self.stacked_layout.addWidget(page)
             self.blank_pages[obj_name] = page
 
         # Default page = MAP
         self.stacked_layout.setCurrentIndex(0)
+
+        # Start backend worker to monitor DB changes in background
+        self.backend = BackendWorker()
+        self.backend.notification_signal.connect(self.handle_backend_notification)
+        self.backend.start()
 
     def on_sidebar_button(self, name):
 
@@ -160,6 +173,22 @@ class MainWindow(QMainWindow):
         print(f"Callback: New node {node_id} added, refreshing map...")
         self.map_widget.update_map()
         self.map_widget.refresh_view()
+
+    def handle_backend_notification(self, notif):
+        # Called when backend detects a new notification; do not auto-refresh
+        # the NotificationsPage (user preferred manual refresh). This handler
+        # can be used to show an in-app indicator; for now we log it.
+        print("Backend created notif:", notif)
+
+    def closeEvent(self, event):
+        # Stop backend worker cleanly on window close
+        if hasattr(self, "backend"):
+            try:
+                self.backend.requestInterruption()
+                self.backend.wait(2000)
+            except Exception:
+                pass
+        super().closeEvent(event)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

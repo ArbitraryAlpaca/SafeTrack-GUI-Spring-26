@@ -10,6 +10,13 @@ def init_db(db:str ="nodes.db"):
                     longitude REAL,
                     latitude REAL,
                     status TEXT)''')
+        
+def get_db(db:str = "nodes.db") -> list:
+    with sqlite3.connect(db) as conn:
+        cur = conn.cursor()
+        cur.execute(f"SELECT * FROM nodes")
+        data = cur.fetchall()
+    return data
 
 # NOT TO BE USED BY BACKEND (only for debug purposes currently)
 def add_to_db(vals:tuple, db:str = "nodes.db"):
@@ -81,3 +88,22 @@ if __name__ == "__main__":
     add_to_db(ex_vals)
     print_db()
 
+
+
+# Notification functions
+
+def init_notif_db(db:str = "nodes.db"):
+    with sqlite3.connect(db) as conn:
+        cur = conn.cursor()
+        cur.execute(f"CREATE TABLE IF NOT EXISTS notifications (time TEXT, node_id INTEGER, status TEXT,Title TEXT, Message TEXT)")
+
+def add_notif(vals:tuple, db:str = "nodes.db"):
+    with sqlite3.connect(db) as conn:
+        conn.execute(f"INSERT INTO notifications VALUES (?,?,?,?,?)",vals)
+
+def get_notifs(db:str = "nodes.db") -> list:
+    with sqlite3.connect(db) as conn:
+        cur = conn.cursor()
+        cur.execute(f"SELECT * FROM notifications")
+        data = cur.fetchall()
+    return data

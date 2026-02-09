@@ -90,4 +90,3 @@ class AddNodePage(QWidget):
                 # Call callback if provided
                 if self.on_node_added:
                     self.on_node_added(node_id)
-
