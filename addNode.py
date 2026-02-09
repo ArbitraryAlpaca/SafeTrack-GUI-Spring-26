@@ -87,7 +87,7 @@ class AddNodePage(QWidget):
                     f"***ERROR: NODE {node_id} DOES NOT EXIST***"
                 )
 
-                # Call callback if provided
-                if self.on_node_added:
-                    self.on_node_added(node_id)
+            # Call callback if provided
+            if self.on_node_added:
+                self.on_node_added(node_id)
 
