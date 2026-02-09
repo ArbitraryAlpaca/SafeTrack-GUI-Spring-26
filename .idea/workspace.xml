@@ -5,15 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="f472f128-fd28-40fa-83d1-6451c09bbee4" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/download_map.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MainApp.py" beforeDir="false" afterPath="$PROJECT_DIR$/MainApp.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/MainApp.ui" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/database.py" beforeDir="false" afterPath="$PROJECT_DIR$/database.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/addNode.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/addNode.py" beforeDir="false" afterPath="$PROJECT_DIR$/addNode.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/download_map.py" beforeDir="false" afterPath="$PROJECT_DIR$/download_map.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/map.py" beforeDir="false" afterPath="$PROJECT_DIR$/map.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/nodes.db" beforeDir="false" afterPath="$PROJECT_DIR$/nodes.db" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -45,10 +43,11 @@
     &quot;Python.OfflineMapDownload.executor&quot;: &quot;Run&quot;,
     &quot;Python.addNode.executor&quot;: &quot;Run&quot;,
     &quot;Python.database.executor&quot;: &quot;Run&quot;,
+    &quot;Python.download_map.executor&quot;: &quot;Run&quot;,
     &quot;Python.main.executor&quot;: &quot;Run&quot;,
     &quot;Python.map.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;
+    &quot;git-widget-placeholder&quot;: &quot;App&quot;
   }
 }</component>
   <component name="RunManager">

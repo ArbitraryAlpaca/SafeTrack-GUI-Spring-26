@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QSpacerItem, QSizePolicy, QMessageBox
-from PyQt5.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QSpacerItem, QSizePolicy, QMessageBox
+from PyQt6.QtCore import Qt
 import database
 
 class AddNodePage(QWidget):
@@ -21,15 +21,15 @@ class AddNodePage(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(50, 50, 50, 50)
         layout.setSpacing(20)
-        layout.setAlignment(Qt.AlignCenter)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setLayout(layout)
 
         # Top spacer to center vertically
-        layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
 
         # Label
         label = QLabel("Enter new Node ID:")
-        label.setAlignment(Qt.AlignCenter)
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setStyleSheet("font-size: 24px; font-weight: bold;")
         layout.addWidget(label)
 
@@ -37,9 +37,9 @@ class AddNodePage(QWidget):
         self.node_input = QLineEdit()
         self.node_input.setPlaceholderText("Node ID")
         self.node_input.setFixedWidth(300)
-        self.node_input.setAlignment(Qt.AlignCenter)
+        self.node_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.node_input.setStyleSheet("font-size: 20px; padding: 8px;")
-        layout.addWidget(self.node_input, alignment=Qt.AlignCenter)
+        layout.addWidget(self.node_input, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Save button
         save_btn = QPushButton("Save Node")
@@ -61,10 +61,10 @@ class AddNodePage(QWidget):
                 background-color: #162040;
             }""")
         save_btn.clicked.connect(self.save_node)
-        layout.addWidget(save_btn, alignment=Qt.AlignCenter)
+        layout.addWidget(save_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # Bottom spacer to center vertically
-        layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
 
     def save_node(self):
         node_id = self.node_input.text().strip()

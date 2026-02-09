@@ -5,7 +5,7 @@ import mercantile
 from tqdm import tqdm
 from dotenv import load_dotenv
 # ---------------- CONFIG ---------------- #
-
+load_dotenv()
 API_KEY = os.getenv("SECRET_KEY") # create .env file with your maptiler api key saved to SECRET_KEY variable
 BBOX = (-111.98, 33.38, -111.87, 33.46) #(West, South, East, North) or (x_min, y_min, x_max, y_max) box to bound region to download
 
