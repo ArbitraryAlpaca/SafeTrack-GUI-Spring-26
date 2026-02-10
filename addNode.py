@@ -80,13 +80,15 @@ class AddNodePage(QWidget):
                         f.write(f"{node_id}\n")
 
                 self.node_input.clear()
+                # Call callback if provided
+                if self.on_node_added:
+                    self.on_node_added(node_id)
             else:
-                QMessageBox.information(
+                QMessageBox.warning(
                     self,
                     "WARNING",
                     f"***ERROR: NODE {node_id} DOES NOT EXIST***"
                 )
 
-                # Call callback if provided
-                if self.on_node_added:
-                    self.on_node_added(node_id)
+            
+
