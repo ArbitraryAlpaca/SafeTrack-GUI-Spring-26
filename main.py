@@ -19,6 +19,14 @@ notif = (time, 0, "System","Node Reconnected", "test notification")
 add_notif = database.add_notif(notif)
 system_notif.new_notif(notif[3], notif[4], notif[2])'''
 
+# data = [(time, node_id, longitude, latitude, status), ...]
+#notif = (time, node_id, status, title, message)
+
+data = [(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 7, 33.41946454694378, -111.93544878156348, "SOS")]
+for row in data:
+    database.add_to_db(row)
+
+
 # python file to run code for testing purposes
 # can be used to test backend code without running the entire GUI
 

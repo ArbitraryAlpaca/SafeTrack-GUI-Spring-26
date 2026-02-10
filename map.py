@@ -23,7 +23,7 @@ class MapDisplay(QWidget):
         self.setLayout(layout)
 
         # Folium map
-        self.m = self.create_map()#folium.Map(location=self.coordinate, zoom_start=14)
+        self.m = self.create_map(self.coordinate, 14)#folium.Map(location=self.coordinate, zoom_start=14)
         self.update_map()
 
         self.webView = QWebEngineView()
@@ -36,12 +36,14 @@ class MapDisplay(QWidget):
         self.refresh_view()
         layout.addWidget(self.webView)
 
-    def create_map(self):
+    def create_map(self, location=None, zoom_start=14):
+        if location is None:
+            location = self.coordinate
         tile_path = os.path.abspath("tiles").replace("\\", "/")
 
         m = folium.Map(
-            location=self.coordinate,
-            zoom_start=11,
+            location=location,
+            zoom_start=zoom_start,
             #min_zoom=10,
             #max_zoom=16,
             tiles=None,
@@ -56,8 +58,8 @@ class MapDisplay(QWidget):
 
         return m
 
-    def update_map(self):
-        self.m = self.create_map()
+    def update_map(self, location = None, zoom_start = 14):
+        self.m = self.create_map(location, zoom_start)
 
         for node in self.nodes:
             try:
@@ -91,3 +93,14 @@ class MapDisplay(QWidget):
         base_url = QUrl.fromLocalFile(os.getcwd() + "/")
 
         self.webView.setHtml(html, base_url)
+
+    def center_on_node(self, node_id):
+        try:
+            gps = database.get_GPS(node_id)
+            if gps:
+                self.update_map(location = gps, zoom_start = 16)
+                self.refresh_view()
+            else:
+                print(f"***ERROR: No GPS data for node {node_id}***")
+        except ValueError:
+            print(f"***ERROR: Node {node_id} does not exist***")

@@ -7,10 +7,12 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QVBoxLayout,
     QPushButton, QLabel, QFrame, QStackedLayout
 )
+import database
 from map import MapDisplay
 from addNode import AddNodePage
 from notification import NotificationsPage
 from backend_worker import BackendWorker
+from alert_system import AlertSystem
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -108,13 +110,7 @@ class MainWindow(QMainWindow):
 
         self.blank_pages = {}
         # ----- MAP PAGE -----
-        self.nodes = []
-        try:
-            with open("node_ids.txt", "r") as f:
-                self.nodes = [line.strip() for line in f if line.strip()]
-        except FileNotFoundError:
-            # File doesn't exist yet, start with empty list
-            self.nodes = []
+        self.nodes = database.get_nodes()
 
         print(f"Loaded nodes: {self.nodes}")
         self.center = (33.42057834806449, -111.9322007773111)
@@ -122,8 +118,6 @@ class MainWindow(QMainWindow):
             node_ids=self.nodes,
             center_coord=self.center
         )
-
-        self.map_widget = MapDisplay(self.nodes, center_coord=self.center)
         self.stacked_layout.addWidget(self.map_widget)
 
         # Add Node page with callback
@@ -157,6 +151,10 @@ class MainWindow(QMainWindow):
         self.backend.notification_signal.connect(self.handle_backend_notification)
         self.backend.start()
 
+        # Initialize alert system
+        self.alert_system = AlertSystem(self)
+        self.alert_system.viewNodeRequested.connect(self.open_node_on_map)
+
     def on_sidebar_button(self, name):
 
         if name == "btnMap":
@@ -175,9 +173,11 @@ class MainWindow(QMainWindow):
         self.map_widget.refresh_view()
 
     def handle_backend_notification(self, notif):
-        # Called when backend detects a new notification; do not auto-refresh
-        # the NotificationsPage (user preferred manual refresh). This handler
-        # can be used to show an in-app indicator; for now we log it.
+        # Called when backend detects a new notification; 
+        if notif[2] == "SOS":
+            print("SOS Alert received for node", notif[1])
+            self.alert_system.show_alert(notif)
+
         print("Backend created notif:", notif)
 
     def closeEvent(self, event):
@@ -189,6 +189,13 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         super().closeEvent(event)
+
+    def open_node_on_map(self, node_id):
+        print(f"AlertSystem requested to view node {node_id} on map")
+        # Switch to map page
+        self.stacked_layout.setCurrentIndex(0)
+        # Center map on the node
+        self.map_widget.center_on_node(node_id)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

@@ -1,3 +1,5 @@
+# Unfinished Code - AddNodePage class for adding new nodes to the system.
+
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QSpacerItem, QSizePolicy, QMessageBox
 from PyQt6.QtCore import Qt
 import database

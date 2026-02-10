@@ -18,8 +18,10 @@ class BackendWorker(QThread):
                 if notif:
                     # create_notification already adds the notif to DB
                     # show system toast immediately
-                    system_notif.new_notif(notif[3], notif[4], notif[2])
-                    # emit to GUI if you want to react (but do NOT auto-refresh NotificationsPage)
-                    self.notification_signal.emit(notif)
+                    for n in notif:
+                        system_notif.new_notif(n[3], n[4], n[2])
+                        print("Backend notif:", n)
+                        # emit to GUI if you want to react (but do NOT auto-refresh NotificationsPage)
+                        self.notification_signal.emit(n)
             old_data = data
             self.msleep(1000)   # sleep 1s (keeps loop responsive to requestInterruption())

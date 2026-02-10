@@ -1,48 +1,62 @@
 # ----------------- Notifications Backend -----------------
 
+# Notif = (time, node_id, status, title, message)
+
 import database
 
-notif = None
+notif = []
 
-def create_notification(data: list[tuple], old_data: list[tuple]) -> tuple:
+def create_notification(data: list[tuple], old_data: list[tuple]) -> list[tuple] | None:
+    global notif
     length = len(data)
     if len(data) > len(old_data):
         length = len(old_data)
-        added_data = [item for item in data if item not in old_data]
-        notif = new_row_notifications(added_data)
+        added_data = list(set(data) - set(old_data))
+        notif.append(new_row_notifications(added_data))
+        print("Added data:", added_data)
+        n = updated_row_notifications(added_data[0])
+        if n:
+            notif.append(n)
+
 
     elif len(data) < len(old_data):
-        removed_data = [item for item in old_data if item not in data]
-        notif = removed_row_notifications(removed_data)
+        removed_data = list(set(old_data) - set(data))
+        notif.append(removed_row_notifications(removed_data))
     
     for i in range(length):
         if data[i][0] != old_data[i][0]:
-            notif = updated_row_notifications(data[i])
+            notif.append(updated_row_notifications(data[i]))
 
     return notif
 
 def new_row_notifications(data: list[tuple]) -> tuple:
-    notif = (data[0][1],data[0][0],"System","Info",f"Node {data[0][1]} has been added")
-    database.add_notif(notif)
-    return notif
+    n = (data[0][0],data[0][1],"System","Info",f"Node {data[0][1]} has been added")
+    database.add_notif(n)
+    return n
 
 def removed_row_notifications(data: list[tuple]) -> tuple:
-    notif = (data[0][1],data[0][0],"System","Info",f"Node {data[0][1]} has been removed")
-    database.add_notif(notif)
-    return notif
+    n = (data[0][0],data[0][1],"System","Info",f"Node {data[0][1]} has been removed")
+    database.add_notif(n)
+    return n
 
 def updated_row_notifications(data: tuple) -> tuple:
-    if data[-1] == "SOS":
-        notif = (data[0][1],data[0][0],"Alert","Warning",f"Node {data[0][1]} SOS Alert")
-        database.add_notif(notif)
-    elif data[-1] == "inactive":
-        notif = (data[0][1],data[0][0],"Alert","Warning",f"Node {data[0][1]} disconnected")
-        database.add_notif(notif)
-    elif data[-1] == "active":
-        notif = (data[0][1],data[0][0],"Alert","Info",f"Node {data[0][1]} reconnected")
-        database.add_notif(notif)
+    n = None
+    comparator = data[-1]
+    print("Comparator:", comparator)
+    if comparator == "SOS":
+        n = (data[0],data[1],"SOS","Warning",f"Node {data[1]} SOS Alert.\n\nLocation: ({data[2]}, {data[3]})")
+        print("SOS Alert for node", data[1])
+        database.add_notif(n)
+    elif comparator == "inactive":
+        n = (data[0],data[1],"Alert","Warning",f"Node {data[1]} disconnected. \n\nLast known location: ({data[2]}, {data[3]})")
+        database.add_notif(n)
+    elif comparator == "active":
+        n = (data[0],data[1],"Alert","Info",f"Node {data[1]} reconnected. \n\nPresent location: ({data[2]}, {data[3]})")
+        database.add_notif(n)
 
-    return notif
+    print("Updated data:", data)
+
+    return n
 
 
 # ----------------- PyQt6 Notifications Page (UI) -----------------

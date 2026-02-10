@@ -1,6 +1,8 @@
 import sqlite3
 from datetime import datetime
 
+# data = [(time, node_id, longitude, latitude, status), ...]
+
 def init_db(db:str ="nodes.db"):
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
@@ -47,6 +49,13 @@ def print_db(db:str = "nodes.db"):
         for row in data:
             print(row)
 
+def get_nodes(db:str = "nodes.db") -> list:
+    with sqlite3.connect(db) as conn:
+        cur = conn.cursor()
+        cur.execute(f"SELECT DISTINCT node_id FROM nodes")
+        data = cur.fetchall()
+    return [d[0] for d in data]
+
 def get_node_info(node_id:int,db:str = "nodes.db") -> list:
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
@@ -81,16 +90,17 @@ def in_db(node_id:int, db:str = "nodes.db") -> bool:
         return True
     return False
 
-
-if __name__ == "__main__":
-    t = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ex_vals = (t,3,33.41946454694378, -111.93544878156348,"ALERT")
-    add_to_db(ex_vals)
-    print_db()
-
+def get_all_nodes(db:str = "nodes.db") -> list:
+    with sqlite3.connect(db) as conn:
+        cur = conn.cursor()
+        cur.execute(f"SELECT DISTINCT node_id FROM nodes")
+        data = cur.fetchall()
+    return [d[0] for d in data]
 
 
 # Notification functions
+
+# Notif = (time, node_id, status, title, message)
 
 def init_notif_db(db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
@@ -107,3 +117,28 @@ def get_notifs(db:str = "nodes.db") -> list:
         cur.execute(f"SELECT * FROM notifications")
         data = cur.fetchall()
     return data
+
+
+
+'''CAUTION: The following functions are for testing purposes only. Do not use in backend code as they may cause data loss.'''
+
+def CLEAR_DB(db:str = "nodes.db"): 
+    with sqlite3.connect(db) as conn:
+        cur = conn.cursor()
+        cur.execute(f"DELETE FROM nodes")
+        conn.commit()
+        cur.close()
+
+def CLEAR_NOTIF_DB(db:str = "nodes.db"):
+    with sqlite3.connect(db) as conn:
+        cur = conn.cursor()
+        cur.execute(f"DELETE FROM notifications")
+        conn.commit()
+        cur.close()
+
+
+if __name__ == "__main__":
+    t = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ex_vals = (t,3,33.41946454694378, -111.93544878156348,"ALERT")
+    add_to_db(ex_vals)
+    print_db()
