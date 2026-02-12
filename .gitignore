@@ -36,7 +36,6 @@ Thumbs.db
 
 # Application-specific
 node_ids.txt
-tiles/
 .env
 *.db
 nodes.db

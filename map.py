@@ -66,7 +66,7 @@ class MapDisplay(QWidget):
                 cur_gps = database.get_GPS(node)
                 icon_img = os.path.abspath("images/green_icon.png")
 
-                if database.get_status(node) == "ALERT":
+                if database.get_status(node) == "SOS":
                     icon_img = os.path.abspath("images/red_icon.png")
                     folium.Circle(
                         radius=100,

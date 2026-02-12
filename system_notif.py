@@ -1,6 +1,6 @@
 import platform
 import subprocess
-from windows_toasts import WindowsToaster, Toast, ToastAudio, ToastDuration, AudioSource
+
 
 def new_notif(title: str, message: str, type: str) -> None:
     
@@ -12,6 +12,8 @@ def new_notif(title: str, message: str, type: str) -> None:
         _notify_linux(title, message, type)
 
 def _notify_windows(title: str, message: str, type: str) -> None:
+
+    from windows_toasts import WindowsToaster, Toast, ToastAudio, ToastDuration, AudioSource
 
     toaster = WindowsToaster('SafeTrack')
     
@@ -28,7 +30,7 @@ def _notify_windows(title: str, message: str, type: str) -> None:
 
     toaster.show_toast(new_toast)
 
-def _notify_darwin(title: str, message: str, type: str) -> None:\
+def _notify_darwin(title: str, message: str, type: str) -> None:
 
     if type.lower() == "alert":
         script = f'display alert "{title}" message "{message}" as critical'

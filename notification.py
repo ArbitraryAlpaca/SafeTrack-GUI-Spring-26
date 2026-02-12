@@ -6,7 +6,7 @@ import database
 
 notif = []
 
-def create_notification(data: list[tuple], old_data: list[tuple]) -> list[tuple] | None:
+def create_notification(data: list[tuple], old_data: list[tuple]) -> list[tuple]:
     global notif
     length = len(data)
     if len(data) > len(old_data):
