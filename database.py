@@ -16,14 +16,17 @@ def init_db(db:str ="nodes.db"):
 def get_db(db:str = "nodes.db") -> list:
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
-        cur.execute(f"SELECT * FROM nodes")
+        cur.execute(f"SELECT * FROM nodes GROUP BY node_id HAVING time = MAX(time)")
         data = cur.fetchall()
     return data
 
 # NOT TO BE USED BY BACKEND (only for debug purposes currently)
 def add_to_db(vals:tuple, db:str = "nodes.db"):
-    with sqlite3.connect(db) as conn:
-        conn.execute(f"INSERT INTO nodes VALUES (?,?,?,?,?)",vals)
+    if isinstance(vals, tuple) and list(map(type,vals)) == [str, int, float, float, str]:
+        with sqlite3.connect(db) as conn:
+            conn.execute(f"INSERT INTO nodes VALUES (?,?,?,?,?)",vals)
+    else:
+        print("***ERROR: VALUE FORMATTING FAILED***")
 
 # Deletes rows before given time
 def delete_before_time(time, db:str ="nodes.db"):
@@ -59,13 +62,13 @@ def get_nodes(db:str = "nodes.db") -> list:
 def get_node_info(node_id:int,db:str = "nodes.db") -> list:
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
-        cur.execute(f"SELECT * FROM nodes WHERE node_id = ?",(node_id,))
+        cur.execute(f"SELECT * FROM nodes WHERE node_id = ? ORDER BY time DESC",(node_id,))
         node_data = cur.fetchall()
     return node_data
 
 def get_recent_info(node_id:int, db:str = "nodes.db") -> list:
     try:
-        return [get_node_info(node_id,db)[-1]]
+        return [get_node_info(node_id,db)[0]]
     except IndexError:
         return []
 
@@ -89,13 +92,6 @@ def in_db(node_id:int, db:str = "nodes.db") -> bool:
     if get_status(node_id, db) != "":
         return True
     return False
-
-def get_all_nodes(db:str = "nodes.db") -> list:
-    with sqlite3.connect(db) as conn:
-        cur = conn.cursor()
-        cur.execute(f"SELECT DISTINCT node_id FROM nodes")
-        data = cur.fetchall()
-    return [d[0] for d in data]
 
 
 # Notification functions

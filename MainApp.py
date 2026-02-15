@@ -16,6 +16,12 @@ from alert_system import AlertSystem
 
 class MainWindow(QMainWindow):
     def __init__(self):
+        # initialize DB before anything else
+        database.init_db()
+        database.init_notif_db()
+
+        # Initilaize main window
+
         super().__init__()
         self.setWindowTitle("SafeTrack")
         self.setMinimumSize(1200, 700)
@@ -32,7 +38,6 @@ class MainWindow(QMainWindow):
         self.sidebar_buttons_info = [
             ("btnMap", "Map"),
             ("btnAddNode", "Add Node"),
-            ("btnSOS", "SOS"),
             ("btnNotifications", "Notifications"),
             ("btnSettings", "Settings"),
         ]
@@ -46,10 +51,12 @@ class MainWindow(QMainWindow):
             }
             QPushButton {
                 background: transparent;
-                border: none;
+                border: 1px solid rgba(255,255,255,0.06);
                 padding: 8px;
                 text-align: left;
                 color: #cfd8ff;
+                border-radius: 6px;
+                margin-bottom: 6px;
             }
             QPushButton:hover {
                 background-color: #162040;
@@ -67,12 +74,10 @@ class MainWindow(QMainWindow):
         for obj_name, label in self.sidebar_buttons_info:
             icons = {"Map": r"images\map_icon.png",
                      "Add Node": r"images\add_icon.png",
-                     "SOS": r"images\alert_icon.png",
                      "Notifications": r"images\notifications_icon.png",
                      "Settings": r"images\settings.png"}
             icn_sizes = {"Map": 30,
                          "Add Node": 30,
-                         "SOS": 30,
                          "Notifications": 30,
                          "Settings":30}
             icon = QIcon(icons[label])
@@ -109,6 +114,12 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(content_frame)
 
         self.blank_pages = {}
+
+        # Start backend worker to monitor DB changes in background
+        self.backend = BackendWorker()
+        self.backend.notification_signal.connect(self.handle_backend_notification)
+        self.backend.start()
+
         # ----- MAP PAGE -----
         self.nodes = database.get_nodes()
 
@@ -127,29 +138,25 @@ class MainWindow(QMainWindow):
         )
         self.stacked_layout.addWidget(add_node_page)
 
+        notifications_page = NotificationsPage()
+        notifications_page.load_notifications()  # load notifications on init
+        self.stacked_layout.addWidget(notifications_page)
+
+
         # ----- BLANK PAGES FOR OTHER BUTTONS -----
         for idx, (obj_name, label) in enumerate(self.sidebar_buttons_info[1:], start=1):
             # Replace the Notifications blank page with the real NotificationsPage
-            if obj_name == "btnNotifications":
-                page = NotificationsPage()
-                page.load_notifications()  # load notifications on init
-            else:
-                page = QFrame()
-                layout = QVBoxLayout(page)
-                label_widget = QLabel(f"{label} screen (blank)")
-                label_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                layout.addWidget(label_widget)
+            page = QFrame()
+            layout = QVBoxLayout(page)
+            label_widget = QLabel(f"{label} screen (blank)")
+            label_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(label_widget)
 
             self.stacked_layout.addWidget(page)
             self.blank_pages[obj_name] = page
 
         # Default page = MAP
         self.stacked_layout.setCurrentIndex(0)
-
-        # Start backend worker to monitor DB changes in background
-        self.backend = BackendWorker()
-        self.backend.notification_signal.connect(self.handle_backend_notification)
-        self.backend.start()
 
         # Initialize alert system
         self.alert_system = AlertSystem(self)
@@ -159,24 +166,40 @@ class MainWindow(QMainWindow):
 
         if name == "btnMap":
             self.stacked_layout.setCurrentIndex(0)
+            self.map_widget.update_map()  # refresh map data when returning to map page
         elif name == "btnAddNode":
             self.stacked_layout.setCurrentIndex(1)
+        elif name == "btnNotifications":
+            self.stacked_layout.setCurrentIndex(2)
+            print("Refreshing notifications page...")
+            # Refresh notifications page data when opened
+            notif_page = self.stacked_layout.currentWidget()
+            if isinstance(notif_page, NotificationsPage):
+                notif_page.load_notifications()
         else:
-            idx = list(self.blank_pages.keys()).index(name) + 2
-            self.stacked_layout.setCurrentIndex(idx)
+            # Find the actual widget for this sidebar entry and switch to it.
+            page_widget = self.blank_pages.get(name)
+            if page_widget is not None:
+                idx = self.stacked_layout.indexOf(page_widget)
+                if idx != -1:
+                    self.stacked_layout.setCurrentIndex(idx)
         print(f"Button pressed: {name}")
 
     def node_added_callback(self, node_id):
 
         print(f"Callback: New node {node_id} added, refreshing map...")
         self.map_widget.update_map()
-        self.map_widget.refresh_view()
 
     def handle_backend_notification(self, notif):
         # Called when backend detects a new notification; 
         if notif[2] == "SOS":
             print("SOS Alert received for node", notif[1])
             self.alert_system.show_alert(notif)
+
+        #update Map page if currently on it
+        if self.stacked_layout.currentWidget() == self.map_widget:
+            print("New notification received, refreshing map...")
+            self.map_widget.update_map()
 
         print("Backend created notif:", notif)
 

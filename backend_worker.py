@@ -7,10 +7,12 @@ class BackendWorker(QThread):
 
     def run(self):
         import database, notification, system_notif
-        database.init_db()
-        database.init_notif_db()
 
         old_data = database.get_db()
+        x = 0
+        if x == 0:
+            print("Initial data:", old_data)
+            x += 1
         while not self.isInterruptionRequested():
             data = database.get_db()
             if old_data is not None and old_data != data:

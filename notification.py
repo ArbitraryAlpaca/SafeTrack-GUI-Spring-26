@@ -3,60 +3,126 @@
 # Notif = (time, node_id, status, title, message)
 
 import database
+from datetime import datetime
 
-notif = []
+def _parse_time(val: str) -> datetime:
+    try:
+        return datetime.fromisoformat(val)
+    except Exception:
+        try:
+            return datetime.strptime(val, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return datetime.min
+
 
 def create_notification(data: list[tuple], old_data: list[tuple]) -> list[tuple]:
-    global notif
-    length = len(data)
-    if len(data) > len(old_data):
-        length = len(old_data)
-        added_data = list(set(data) - set(old_data))
-        notif.append(new_row_notifications(added_data))
-        print("Added data:", added_data)
-        n = updated_row_notifications(added_data[0])
+    """Compare `data` and `old_data` per-node and return only new
+    notifications for added/removed nodes and meaningful updates.
+    - status changes (inactive/active/SOS) produce status notifications
+    - location changes (lat/lon) produce location notifications
+    - time-only changes produce no notification
+    """
+    new_notifs: list[tuple] = []
+
+    # build latest-row lookup by node_id for both datasets
+    def latest_by_node(rows: list[tuple]) -> dict:
+        d = {}
+        for r in rows:
+            if len(r) < 5:
+                continue
+            node = r[1]
+            t = _parse_time(r[0])
+            if node not in d or t > _parse_time(d[node][0]):
+                d[node] = r
+        return d
+
+    new_map = latest_by_node(data)
+    old_map = latest_by_node(old_data)
+
+    new_nodes = set(new_map.keys())
+    old_nodes = set(old_map.keys())
+
+    # Added nodes
+    for node in new_nodes - old_nodes:
+        n = new_row_notifications([new_map[node]])
+        new_notifs.append(n)
+
+    # Removed nodes
+    for node in old_nodes - new_nodes:
+        n = removed_row_notifications([old_map[node]])
+        new_notifs.append(n)
+
+    # Updated nodes (present in both) -> decide if status/location changed
+    for node in new_nodes & old_nodes:
+        old_row = old_map[node]
+        new_row = new_map[node]
+        n = updated_row_notifications(old_row, new_row)
         if n:
-            notif.append(n)
+            new_notifs.append(n)
 
-
-    elif len(data) < len(old_data):
-        removed_data = list(set(old_data) - set(data))
-        notif.append(removed_row_notifications(removed_data))
-    
-    for i in range(length):
-        if data[i][0] != old_data[i][0]:
-            notif.append(updated_row_notifications(data[i]))
-
-    return notif
+    return new_notifs
 
 def new_row_notifications(data: list[tuple]) -> tuple:
-    n = (data[0][0],data[0][1],"System","Info",f"Node {data[0][1]} has been added")
+    # Title should describe the event; status/type goes in the third field.
+    title = f"Node {data[0][1]} has been added"
+    message = f"Current location: ({data[0][2]}, {data[0][3]})"
+    n = (data[0][0], data[0][1], "System", title, message)
     database.add_notif(n)
     return n
 
 def removed_row_notifications(data: list[tuple]) -> tuple:
-    n = (data[0][0],data[0][1],"System","Info",f"Node {data[0][1]} has been removed")
+    title = f"Node {data[0][1]} has been removed"
+    message = f"Last recorded location: ({data[0][2]}, {data[0][3]})"
+    n = (data[0][0], data[0][1], "System", title, message)
     database.add_notif(n)
     return n
 
-def updated_row_notifications(data: tuple) -> tuple:
-    n = None
-    comparator = data[-1]
-    print("Comparator:", comparator)
-    if comparator == "SOS":
-        n = (data[0],data[1],"SOS","Warning",f"Node {data[1]} SOS Alert.\n\nLocation: ({data[2]}, {data[3]})")
-        print("SOS Alert for node", data[1])
-        database.add_notif(n)
-    elif comparator == "inactive":
-        n = (data[0],data[1],"Alert","Warning",f"Node {data[1]} disconnected. \n\nLast known location: ({data[2]}, {data[3]})")
-        database.add_notif(n)
-    elif comparator == "active":
-        n = (data[0],data[1],"Alert","Info",f"Node {data[1]} reconnected. \n\nPresent location: ({data[2]}, {data[3]})")
-        database.add_notif(n)
+def updated_row_notifications(old_row: tuple, new_row: tuple) -> tuple:
+    """Compare an old_row and new_row for a node and return a notification
+    tuple if a meaningful change occurred; otherwise return None.
+    """
+    # expected row format: (time, node_id, longitude, latitude, status)
+    try:
+        old_status = str(old_row[4])
+        new_status = str(new_row[4])
+        old_lon, old_lat = float(old_row[2]), float(old_row[3])
+        new_lon, new_lat = float(new_row[2]), float(new_row[3])
+    except Exception:
+        return None
 
-    print("Updated data:", data)
+    node = new_row[1]
+    # Status change has priority
+    if old_status != new_status:
+        if new_status == "SOS":
+            title = f"Node {node} SOS Alert"
+            message = f"Location: {new_lat}, {new_lon}"
+            n = (new_row[0], node, "SOS", title, message)
+        elif new_status == "inactive":
+            title = f"Node {node} Disconnected"
+            message = f"Last known location: {new_lat}, {new_lon}"
+            n = (new_row[0], node, "Alert", title, message)
+        elif new_status == "active":
+            title = f"Node {node} Reconnected"
+            message = f"Present location: {new_lat}, {new_lon}"
+            n = (new_row[0], node, "Alert", title, message)
+        else:
+            title = f"Node {node} Status: {new_status}"
+            message = f"Location: {new_lat}, {new_lon}"
+            n = (new_row[0], node, "Info", title, message)
+        database.add_notif(n)
+        return n
 
-    return n
+    # No status change -> check location change (consider small epsilon)
+    eps = 1e-6
+    if abs(old_lat - new_lat) > eps or abs(old_lon - new_lon) > eps:
+        title = f"Node {node} Location Update"
+        message = f"Location: {new_lat}, {new_lon}"
+        n = (new_row[0], node, "Info", title, message)
+        database.add_notif(n)
+        return n
+
+    # Only time changed or identical -> no notification
+    return None
 
 
 # ----------------- PyQt6 Notifications Page (UI) -----------------
@@ -82,9 +148,12 @@ class NotificationsPage(QWidget):
         # Header / controls
         header_layout = QHBoxLayout()
         self.refresh_btn = QPushButton("Refresh")
+        # slightly stronger visual for controls
+        self.refresh_btn.setStyleSheet("padding:6px 10px; border:1px solid #2b3a4a; border-radius:6px;")
         self.filter_combo = QComboBox()
-        # filter options: All, Alert, System
-        self.filter_combo.addItems(["All", "Alert", "System"])
+        self.filter_combo.setStyleSheet("padding:4px; border:1px solid #2b3a4a; border-radius:6px;")
+        # filter options: All, SOS, Alert, Info, System
+        self.filter_combo.addItems(["All", "SOS", "Alert", "Info", "System"])
         header_layout.addWidget(QLabel("Notifications"))
         header_layout.addStretch()
         header_layout.addWidget(self.filter_combo)
@@ -134,6 +203,8 @@ class NotificationsPage(QWidget):
 
             card = QFrame()
             card.setFrameShape(QFrame.Shape.StyledPanel)
+            # keep a subtle background and rounded corners but remove inner borders
+            card.setStyleSheet("background-color: #0f1724; border-radius:8px;")
             card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
             card_layout = QHBoxLayout()
             card_layout.setContentsMargins(8, 8, 8, 8)

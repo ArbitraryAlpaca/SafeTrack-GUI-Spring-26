@@ -37,7 +37,7 @@ Thumbs.db
 # Application-specific
 node_ids.txt
 .env
-*.db
+*.db  
 nodes.db
 
 # Logs
