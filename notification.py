@@ -65,14 +65,14 @@ def create_notification(data: list[tuple], old_data: list[tuple]) -> list[tuple]
 def new_row_notifications(data: list[tuple]) -> tuple:
     # Title should describe the event; status/type goes in the third field.
     title = f"Node {data[0][1]} has been added"
-    message = f"Current location: ({data[0][2]}, {data[0][3]})"
+    message = f"Current location: ({data[0][2]:.6f}, {data[0][3]:.6f})"
     n = (data[0][0], data[0][1], "System", title, message)
     database.add_notif(n)
     return n
 
 def removed_row_notifications(data: list[tuple]) -> tuple:
     title = f"Node {data[0][1]} has been removed"
-    message = f"Last recorded location: ({data[0][2]}, {data[0][3]})"
+    message = f"Last recorded location: ({data[0][2]:.6f}, {data[0][3]:.6f})"
     n = (data[0][0], data[0][1], "System", title, message)
     database.add_notif(n)
     return n
@@ -95,19 +95,19 @@ def updated_row_notifications(old_row: tuple, new_row: tuple) -> tuple:
     if old_status != new_status:
         if new_status == "SOS":
             title = f"Node {node} SOS Alert"
-            message = f"Location: {new_lat}, {new_lon}"
+            message = f"Location: {new_lat:.6f}, {new_lon:.6f}"
             n = (new_row[0], node, "SOS", title, message)
         elif new_status == "inactive":
             title = f"Node {node} Disconnected"
-            message = f"Last known location: {new_lat}, {new_lon}"
+            message = f"Last known location: {new_lat:.6f}, {new_lon:.6f}"
             n = (new_row[0], node, "Alert", title, message)
         elif new_status == "active":
             title = f"Node {node} Reconnected"
-            message = f"Present location: {new_lat}, {new_lon}"
+            message = f"Present location: {new_lat:.6f}, {new_lon:.6f}"
             n = (new_row[0], node, "Alert", title, message)
         else:
             title = f"Node {node} Status: {new_status}"
-            message = f"Location: {new_lat}, {new_lon}"
+            message = f"Location: {new_lat:.6f}, {new_lon:.6f}"
             n = (new_row[0], node, "Info", title, message)
         database.add_notif(n)
         return n
@@ -116,7 +116,7 @@ def updated_row_notifications(old_row: tuple, new_row: tuple) -> tuple:
     eps = 1e-6
     if abs(old_lat - new_lat) > eps or abs(old_lon - new_lon) > eps:
         title = f"Node {node} Location Update"
-        message = f"Location: {new_lat}, {new_lon}"
+        message = f"Location: {new_lat:.6f}, {new_lon:.6f}"
         n = (new_row[0], node, "Info", title, message)
         database.add_notif(n)
         return n
