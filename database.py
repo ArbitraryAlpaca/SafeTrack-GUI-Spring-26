@@ -20,7 +20,6 @@ def get_db(db:str = "nodes.db") -> list:
         data = cur.fetchall()
     return data
 
-# NOT TO BE USED BY BACKEND (only for debug purposes currently)
 def add_to_db(vals:tuple, db:str = "nodes.db"):
     if isinstance(vals, tuple) and list(map(type,vals)) == [str, int, float, float, str]:
         with sqlite3.connect(db) as conn:
