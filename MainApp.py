@@ -13,6 +13,7 @@ from addNode import AddNodePage
 from notification import NotificationsPage
 from backend_worker import BackendWorker
 from alert_system import AlertSystem
+from serial_monitor import Monitor
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -26,6 +27,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("SafeTrack")
         self.setMinimumSize(1200, 700)
 
+        self.port = "COM7"
+        self.hrs = 48
+        monitor = Monitor(self.port, self.hrs)
+        monitor.start()
         # ================= CENTRAL WIDGET =================
         central = QWidget()
         self.setCentralWidget(central)
