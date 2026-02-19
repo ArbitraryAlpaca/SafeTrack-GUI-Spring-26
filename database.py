@@ -13,10 +13,11 @@ def init_db(db:str ="nodes.db"):
                     latitude REAL,
                     status TEXT)''')
         
+        
 def get_db(db:str = "nodes.db") -> list:
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
-        cur.execute(f"SELECT * FROM nodes GROUP BY node_id HAVING time = MAX(time)")
+        cur.execute(f"SELECT *, MAX(time) FROM nodes GROUP BY node_id")
         data = cur.fetchall()
     return data
 
@@ -49,7 +50,7 @@ def print_db(db:str = "nodes.db"):
         cur.execute(f"SELECT * FROM nodes")
         data = cur.fetchall()
         for row in data:
-            print(row)
+            print(row, end="\n")
 
 def get_nodes(db:str = "nodes.db") -> list:
     with sqlite3.connect(db) as conn:

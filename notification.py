@@ -25,37 +25,34 @@ def create_notification(data: list[tuple], old_data: list[tuple]) -> list[tuple]
     new_notifs: list[tuple] = []
 
     # build latest-row lookup by node_id for both datasets
-    def latest_by_node(rows: list[tuple]) -> dict:
+    def to_dict(rows: list[tuple]) -> dict:
+        # expected row format: (time, node_id, longitude, latitude, status)
         d = {}
         for r in rows:
-            if len(r) < 5:
-                continue
-            node = r[1]
-            t = _parse_time(r[0])
-            if node not in d or t > _parse_time(d[node][0]):
-                d[node] = r
+            node = r[1]  
+            d[node] = r
         return d
 
-    new_map = latest_by_node(data)
-    old_map = latest_by_node(old_data)
+    new_dict = to_dict(data)
+    old_dict = to_dict(old_data)
 
-    new_nodes = set(new_map.keys())
-    old_nodes = set(old_map.keys())
+    new_nodes = set(new_dict.keys())
+    old_nodes = set(old_dict.keys())
 
     # Added nodes
     for node in new_nodes - old_nodes:
-        n = new_row_notifications([new_map[node]])
+        n = new_row_notifications([new_dict[node]])
         new_notifs.append(n)
 
     # Removed nodes
     for node in old_nodes - new_nodes:
-        n = removed_row_notifications([old_map[node]])
+        n = removed_row_notifications([old_dict[node]])
         new_notifs.append(n)
 
     # Updated nodes (present in both) -> decide if status/location changed
     for node in new_nodes & old_nodes:
-        old_row = old_map[node]
-        new_row = new_map[node]
+        old_row = old_dict[node]
+        new_row = new_dict[node]
         n = updated_row_notifications(old_row, new_row)
         if n:
             new_notifs.append(n)
@@ -65,14 +62,14 @@ def create_notification(data: list[tuple], old_data: list[tuple]) -> list[tuple]
 def new_row_notifications(data: list[tuple]) -> tuple:
     # Title should describe the event; status/type goes in the third field.
     title = f"Node {data[0][1]} has been added"
-    message = f"Current location: ({data[0][2]:.6f}, {data[0][3]:.6f})"
+    message = f"Current location: {data[0][2]:.6f}, {data[0][3]:.6f}"
     n = (data[0][0], data[0][1], "System", title, message)
     database.add_notif(n)
     return n
 
 def removed_row_notifications(data: list[tuple]) -> tuple:
     title = f"Node {data[0][1]} has been removed"
-    message = f"Last recorded location: ({data[0][2]:.6f}, {data[0][3]:.6f})"
+    message = f"Last recorded location: {data[0][2]:.6f}, {data[0][3]:.6f}"
     n = (data[0][0], data[0][1], "System", title, message)
     database.add_notif(n)
     return n
