@@ -17,7 +17,7 @@ class Monitor(QThread):
             while not self.isInterruptionRequested():
                 packets = (ser.readline().decode('utf-8').rstrip()).split(' ')
                 #print(packets)
-                packet = [int(packets[0]),float(packets[1]),-float(packets[2])]
+                packet = [int(packets[0]),float(packets[1]),float(packets[2])]
                 #print(packet)
                 database.add_to_db((datetime.now().strftime(self.time_format), packet[0], packet[1], packet[2], "SOS"))
                 database.delete_before_time((datetime.now() - timedelta(hours=self.hrs)).strftime(self.time_format))

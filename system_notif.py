@@ -20,7 +20,7 @@ def _notify_windows(title: str, message: str, type: str) -> None:
     new_toast = Toast()
     new_toast.text_fields = [title, message]
 
-    if type.lower() == "alert":
+    if type.lower() == "alert": 
         new_toast.duration = ToastDuration.Long 
         new_toast.audio = ToastAudio(sound = AudioSource.Alarm10, looping=True)
 

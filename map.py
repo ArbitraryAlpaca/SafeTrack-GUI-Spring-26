@@ -14,6 +14,10 @@ class MapDisplay(QWidget):
 
         self.nodes = node_ids
         self.coordinate = center_coord
+        # current_center holds the active center used when rendering.
+        # It defaults to the initial coordinate but can be changed
+        # by `center_on_node` or by passing a location to `update_map`.
+        self.current_center = self.coordinate
 
         self.setWindowTitle("SafeTrack Map")
         self.setMinimumSize(800, 600)
@@ -55,7 +59,18 @@ class MapDisplay(QWidget):
 
     def create_map(self, location=None, zoom_start=14):
         if location is None:
-            location = self.coordinate
+            location = self.current_center
+        # Normalize location to (lat, lon). If the first value is outside
+        # valid latitude range, assume the tuple was (lon, lat) and swap.
+        try:
+            if isinstance(location, (list, tuple)) and len(location) >= 2:
+                lat, lon = location[0], location[1]
+                if abs(lat) > 90:
+                    lat, lon = location[1], location[0]
+                location = (lat, lon)
+        except Exception:
+            pass
+        print(f"Creating folium map centered at: {location}, zoom={zoom_start}")
         tile_path = os.path.abspath("tiles").replace("\\", "/")
 
         m = folium.Map(
@@ -76,6 +91,9 @@ class MapDisplay(QWidget):
         return m
 
     def update_map(self, location = None, zoom_start = 14):
+        # If a new location is provided, make it the current center.
+        if location is not None:
+            self.current_center = location
         self.m = self.create_map(location, zoom_start)
 
         
@@ -119,6 +137,7 @@ class MapDisplay(QWidget):
     def center_on_node(self, node_id):
         try:
             gps = database.get_GPS(node_id)
+            print(f"center_on_node: node_id={node_id}, gps={gps}")
             if gps:
                 self.update_map(location = gps, zoom_start = 16)
                 self.refresh_view()

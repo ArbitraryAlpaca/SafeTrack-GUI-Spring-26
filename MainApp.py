@@ -1,5 +1,8 @@
 import sys
 
+from simulating_nodes import Simulate
+
+import user
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
@@ -17,9 +20,14 @@ from serial_monitor import Monitor
 
 class MainWindow(QMainWindow):
     def __init__(self):
+
+        # temp user
+        user.USER = ("admin", "password", "admin", [1,2,3,4,5,6,7,8,9,10])
+
         # initialize DB before anything else
         database.init_db()
         database.init_notif_db()
+        database.init_user_db()
 
         # Initilaize main window
 
@@ -27,9 +35,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("SafeTrack")
         self.setMinimumSize(1200, 700)
 
-        self.port = "COM7"
+        self.port = "COM9"
         self.hrs = 48
-        monitor = Monitor(self.port, self.hrs)
+        monitor = Simulate(self.port, self.hrs)
         monitor.start()
         # ================= CENTRAL WIDGET =================
         central = QWidget()
@@ -126,7 +134,11 @@ class MainWindow(QMainWindow):
         self.backend.start()
 
         # ----- MAP PAGE -----
-        self.nodes = database.get_nodes()
+        # Initialize alert system early so other methods can use it
+        self.alert_system = AlertSystem(self)
+        self.alert_system.viewNodeRequested.connect(self.open_node_on_map)
+
+        self.nodes = user.USER[3] if user.USER else self.show_login_request()
 
         print(f"Loaded nodes: {self.nodes}")
         self.center = (33.42057834806449, -111.9322007773111)
@@ -163,10 +175,6 @@ class MainWindow(QMainWindow):
         # Default page = MAP
         self.stacked_layout.setCurrentIndex(0)
 
-        # Initialize alert system
-        self.alert_system = AlertSystem(self)
-        self.alert_system.viewNodeRequested.connect(self.open_node_on_map)
-
     def on_sidebar_button(self, name):
 
         if name == "btnMap":
@@ -199,7 +207,7 @@ class MainWindow(QMainWindow):
         # Called when backend detects a new notification; 
         if notif[2] == "SOS":
             print("SOS Alert received for node", notif[1])
-            self.alert_system.show_alert(notif)
+            self.alert_system.show_alert_node(notif)
 
         #update Map page if currently on it
         if self.stacked_layout.currentWidget() == self.map_widget:
@@ -224,6 +232,11 @@ class MainWindow(QMainWindow):
         self.stacked_layout.setCurrentIndex(0)
         # Center map on the node
         self.map_widget.center_on_node(node_id)
+
+    def show_login_request(self):
+        # Placeholder for user login system; for now just return all nodes
+        self.alert_system.show_login_alert(("System", "Login Required", "Please Login to access node data."))
+        return database.get_all_nodes()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
