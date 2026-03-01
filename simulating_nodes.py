@@ -11,7 +11,7 @@ class Simulate(QThread):
         import random, time, database
         from datetime import datetime, timedelta
         while not self.isInterruptionRequested():
-            time.sleep(30)
+            time.sleep(15)
             
             node = random.randint(1,10)
             # generate latitude, longitude
