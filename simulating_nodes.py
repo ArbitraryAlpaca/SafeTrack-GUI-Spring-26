@@ -11,6 +11,8 @@ class Simulate(QThread):
         import random, time, database
         from datetime import datetime, timedelta
         while not self.isInterruptionRequested():
+            time.sleep(30)
+            
             node = random.randint(1,10)
             # generate latitude, longitude
             lat = round(random.uniform(33.38,33.46), 10)
@@ -21,6 +23,6 @@ class Simulate(QThread):
 
             # DB expects (time, node_id, latitude, longitude, status)
             database.add_to_db((datetime.now().strftime(self.time_format), packet[0], packet[1], packet[2], "SOS"))
-            database.delete_before_time((datetime.now() - timedelta(hours=self.hrs)).strftime(self.time_format))
-            database.print_db()
-            time.sleep(10)
+            database.delete_before_time((datetime.now() - timedelta(hours=self.hrs)).strftime(self.time_format),"notifications")
+            database.delete_before_time((datetime.now() - timedelta(hours=self.hrs)).strftime(self.time_format),)
+            

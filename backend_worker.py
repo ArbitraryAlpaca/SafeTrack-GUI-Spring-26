@@ -1,19 +1,19 @@
 # backend_worker.py
 from PyQt6.QtCore import QThread, pyqtSignal
+from user import User
 
 class BackendWorker(QThread):
     # emits the notification tuple when one is created (optional)
     notification_signal = pyqtSignal(tuple)
+    def __init__(self, user:User):
+        super(QThread, self).__init__()
+        self.user = user
 
     def run(self):
         import database, notification, system_notif
-        import user
 
         old_data = database.get_db()
-        x = 0
-        if x == 0:
-            print("Initial data:", old_data)
-            x += 1
+        
         while not self.isInterruptionRequested():
             data = database.get_db()
             if old_data is not None and old_data != data:
@@ -23,7 +23,7 @@ class BackendWorker(QThread):
                     # show system toast immediately
                     for n in notif:
                         # redact location only for nodes the user is NOT authorized to view
-                        if user.USER is not None and n[1] not in user.USER[3]:
+                        if not self.user.is_admin or n[1] not in self.user.viewable_nodes:
                             n = self.redacted_notif(n)
                         system_notif.new_notif(n[3], n[4], n[2])
                         print("Backend notif:", n)

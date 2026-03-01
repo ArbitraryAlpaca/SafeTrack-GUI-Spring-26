@@ -1,6 +1,5 @@
 import sqlite3
 from datetime import datetime
-import user
 
 # data = [(time, node_id, latitude, longitude, status), ...]
 
@@ -24,23 +23,26 @@ def get_db(db:str = "nodes.db") -> list:
 
 def add_to_db(vals:tuple, db:str = "nodes.db"):
     if isinstance(vals, tuple) and list(map(type,vals)) == [str, int, float, float, str]:
+        print(vals, "VALS")
         with sqlite3.connect(db) as conn:
             conn.execute(f"INSERT INTO nodes VALUES (?,?,?,?,?)",vals)
     else:
         print("***ERROR: VALUE FORMATTING FAILED***")
 
 # Deletes rows before given time
-def delete_before_time(time, db:str ="nodes.db"):
+def delete_before_time(time, table:str = "nodes", db:str ="nodes.db"):
     time_format = "%Y-%m-%d %H:%M:%S"
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
         try:
             time = datetime.fromisoformat(time)
             time = time.strftime(time_format)
-
-            cur.execute(f'''DELETE FROM nodes WHERE time < ?''', (time,))
-            conn.commit()
-            cur.close()
+            if table == "nodes":
+                cur.execute(f'''DELETE FROM nodes WHERE time < ?''', (time,))
+                conn.commit()
+            elif table == "notifications":
+                cur.execute(f'''DELETE FROM notifications WHERE time < ?''', (time,))
+                conn.commit()
         except ValueError:
             print("***ERROR: TIME FORMATTING FAILED (YYYY-MM-DD HH:MM:SS)***")
             return -1
@@ -55,18 +57,18 @@ def print_db(db:str = "nodes.db"):
 
 def get_nodes(db:str = "nodes.db") -> list:
     with sqlite3.connect(db) as conn:
-        node_List = user.USER[3] if user.USER else None  # Get authorized nodes list or None for all access
         cur = conn.cursor()
         cur.execute(f"SELECT DISTINCT node_id FROM nodes")
         data = cur.fetchall()
-    return [d[0] for d in data if node_List is None or d[0] in node_List]  # Filter nodes based on authorization
+        data = [row[0] for row in data]
+    return data if data else []
 
 def get_node_info(node_id:int,db:str = "nodes.db") -> list:
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
         cur.execute(f"SELECT * FROM nodes WHERE node_id = ? ORDER BY time DESC",(node_id,))
         node_data = cur.fetchall()
-    return node_data if node_data and (user.USER is None or node_id in user.USER[3]) else []  # Return empty if user not authorized for this node
+    return node_data
 
 def get_recent_info(node_id:int, db:str = "nodes.db") -> list:
     try:
@@ -119,6 +121,8 @@ def get_notifs(db:str = "nodes.db") -> list:
 
 
 
+
+
 '''CAUTION: The following functions are for testing purposes only. Do not use in backend code as they may cause data loss.'''
 
 def CLEAR_DB(db:str = "nodes.db"): 
@@ -126,25 +130,20 @@ def CLEAR_DB(db:str = "nodes.db"):
         cur = conn.cursor()
         cur.execute(f"DELETE FROM nodes")
         conn.commit()
-        cur.close()
 
 def CLEAR_NOTIF_DB(db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
         cur.execute(f"DELETE FROM notifications")
         conn.commit()
-        cur.close()
 
 
 if __name__ == "__main__":
-    t = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    ex_vals = (t,3,33.41946454694378, -111.93544878156348,"ALERT")
-    add_to_db(ex_vals)
     print_db()
 
 
 
-# User database functions
+# Login/Users database functions
 
 def init_user_db(db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
@@ -176,14 +175,12 @@ def update_user(user_name:str, password:str = None, role:str = None, authorized_
         if authorized_nodes is not None:
             cur.execute(f"UPDATE users SET authorized_nodes = ? WHERE user_name = ?",(str(authorized_nodes), user_name))
         conn.commit()
-        cur.close()
 
 def delete_user(user_name:str, db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
         cur.execute(f"DELETE FROM users WHERE user_name = ?",(user_name,))
         conn.commit()
-        cur.close()
 
 def list_users(db:str = "nodes.db") -> list:
     with sqlite3.connect(db) as conn:
@@ -220,7 +217,6 @@ def CLEAR_USER_DB(db:str = "nodes.db"):
         cur = conn.cursor()
         cur.execute(f"DELETE FROM users")
         conn.commit()
-        cur.close()
 
 def print_users(db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:

@@ -1,8 +1,5 @@
 import sys
 
-from simulating_nodes import Simulate
-
-import user
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
@@ -11,33 +8,35 @@ from PyQt6.QtWidgets import (
     QPushButton, QLabel, QFrame, QStackedLayout
 )
 import database
+from user import User
+
 from map import MapDisplay
 from addNode import AddNodePage
 from notification import NotificationsPage
 from backend_worker import BackendWorker
 from alert_system import AlertSystem
-from serial_monitor import Monitor
+#from serial_monitor import Monitor
+from simulating_nodes import Simulate #for debugging only
 
 class MainWindow(QMainWindow):
     def __init__(self):
-
-        # temp user
-        user.USER = ("admin", "password", "admin", [1,2,3,4,5,6,7,8,9,10])
 
         # initialize DB before anything else
         database.init_db()
         database.init_notif_db()
         database.init_user_db()
 
-        # Initilaize main window
+        # temp user
+        user = User("admin", "password", 1)
 
+        # Initilaize main window
         super().__init__()
         self.setWindowTitle("SafeTrack")
         self.setMinimumSize(1200, 700)
 
         self.port = "COM9"
         self.hrs = 48
-        monitor = Simulate(self.port, self.hrs)
+        monitor = Simulate(self.port, self.hrs) #replace with Monitor(self.port, self.hrs) for final product
         monitor.start()
         # ================= CENTRAL WIDGET =================
         central = QWidget()
@@ -93,6 +92,7 @@ class MainWindow(QMainWindow):
                          "Add Node": 30,
                          "Notifications": 30,
                          "Settings":30}
+            
             icon = QIcon(icons[label])
             btn = QPushButton(label)
             btn.setIcon(icon)
@@ -129,7 +129,7 @@ class MainWindow(QMainWindow):
         self.blank_pages = {}
 
         # Start backend worker to monitor DB changes in background
-        self.backend = BackendWorker()
+        self.backend = BackendWorker(user)
         self.backend.notification_signal.connect(self.handle_backend_notification)
         self.backend.start()
 
@@ -138,7 +138,7 @@ class MainWindow(QMainWindow):
         self.alert_system = AlertSystem(self)
         self.alert_system.viewNodeRequested.connect(self.open_node_on_map)
 
-        self.nodes = user.USER[3] if user.USER else self.show_login_request()
+        self.nodes = user.viewable_nodes if user.viewable_nodes else self.show_login_request()
 
         print(f"Loaded nodes: {self.nodes}")
         self.center = (33.42057834806449, -111.9322007773111)
@@ -176,26 +176,26 @@ class MainWindow(QMainWindow):
         self.stacked_layout.setCurrentIndex(0)
 
     def on_sidebar_button(self, name):
-
-        if name == "btnMap":
-            self.stacked_layout.setCurrentIndex(0)
-            self.map_widget.update_map()  # refresh map data when returning to map page
-        elif name == "btnAddNode":
-            self.stacked_layout.setCurrentIndex(1)
-        elif name == "btnNotifications":
-            self.stacked_layout.setCurrentIndex(2)
-            print("Refreshing notifications page...")
-            # Refresh notifications page data when opened
-            notif_page = self.stacked_layout.currentWidget()
-            if isinstance(notif_page, NotificationsPage):
-                notif_page.load_notifications()
-        else:
-            # Find the actual widget for this sidebar entry and switch to it.
-            page_widget = self.blank_pages.get(name)
-            if page_widget is not None:
-                idx = self.stacked_layout.indexOf(page_widget)
-                if idx != -1:
-                    self.stacked_layout.setCurrentIndex(idx)
+        match name:
+            case "btnMap":
+                self.stacked_layout.setCurrentIndex(0)
+                self.map_widget.update_map()  # refresh map data when returning to map page
+            case "btnAddNode":
+                self.stacked_layout.setCurrentIndex(1)
+            case "btnNotifications":
+                self.stacked_layout.setCurrentIndex(2)
+                print("Refreshing notifications page...")
+                # Refresh notifications page data when opened
+                notif_page = self.stacked_layout.currentWidget()
+                if isinstance(notif_page, NotificationsPage):
+                    notif_page.load_notifications()
+            case _:
+                # Find the actual widget for this sidebar entry and switch to it.
+                page_widget = self.blank_pages.get(name)
+                if page_widget is not None:
+                    idx = self.stacked_layout.indexOf(page_widget)
+                    if idx != -1:
+                        self.stacked_layout.setCurrentIndex(idx)
         print(f"Button pressed: {name}")
 
     def node_added_callback(self, node_id):
@@ -236,7 +236,7 @@ class MainWindow(QMainWindow):
     def show_login_request(self):
         # Placeholder for user login system; for now just return all nodes
         self.alert_system.show_login_alert(("System", "Login Required", "Please Login to access node data."))
-        return database.get_all_nodes()
+        return database.get_nodes()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
