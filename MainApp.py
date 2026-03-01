@@ -19,16 +19,12 @@ from simulating_nodes import Simulate #for debugging only
 class MainWindow(QMainWindow):
     logout_requested = pyqtSignal()
     def __init__(self, user):
-
-        # temp user
-        #user = User("admin", "password", 1)
-
         # Initilaize main window
         super().__init__()
         self.setWindowTitle("SafeTrack")
         self.setMinimumSize(1200, 700)
 
-        self.port = "COM9"
+        self.port = "COM9" #random port, change if using actual Monitor and not simulation
         self.hrs = 48
         monitor = Simulate(self.port, self.hrs) #replace with Monitor(self.port, self.hrs) for final product
         monitor.start()
@@ -223,23 +219,20 @@ class MainWindow(QMainWindow):
         # Center map on the node
         self.map_widget.center_on_node(node_id)
 
-  
 
 if __name__ == "__main__":
     database.init_db()
     database.init_notif_db()
     database.init_user_db()
+    
     app = QApplication(sys.argv)
-
     login_window = LoginWindow()
     main_window = None   
 
     def start_main(user):
         global main_window   
         main_window = MainWindow(user)
-
         main_window.logout_requested.connect(show_login)
-
         login_window.hide()
         main_window.show()
 
@@ -247,7 +240,5 @@ if __name__ == "__main__":
         login_window.show()
 
     login_window.login_successful.connect(start_main)
-
     login_window.show()
-
     sys.exit(app.exec())
