@@ -137,75 +137,72 @@ def CLEAR_NOTIF_DB(db:str = "nodes.db"):
         cur.execute(f"DELETE FROM notifications")
         conn.commit()
 
-
-if __name__ == "__main__":
-    print_db()
-
-
-
 # Login/Users database functions
 
 def init_user_db(db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
-        cur.execute(f"CREATE TABLE IF NOT EXISTS users (user_name TEXT PRIMARY KEY, password TEXT, is_admin INTEGER DEFAULT 0, authorized_nodes TEXT DEFAULT '')") # athorized_nodes format = [1,2,3] Where int is node_id. Empty string means access to all nodes.
+        cur.execute(f"""CREATE TABLE IF NOT EXISTS users (
+                    username TEXT PRIMARY KEY, 
+                    password TEXT, 
+                    is_admin INTEGER DEFAULT 0, 
+                    authorized_nodes TEXT DEFAULT '[]')""") # athorized_nodes format = [1,2,3] Where int is node_id. Empty string means access to all nodes.
         conn.commit()
         cur.close()
 
-def add_user(user_name:str, password:str, role:str = "user", authorized_nodes:list = [], db:str = "nodes.db"):
+def add_user(user_info:tuple, db:str = "nodes.db"):#username:str, password:str, role:str = "user", authorized_nodes:list = [], db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
-        conn.execute(f"INSERT INTO users VALUES (?,?,?,?,?)",(user_name, password, 1 if role.lower() == "admin" else 0, str(authorized_nodes)))
+        conn.execute(f"INSERT INTO users VALUES (?,?,?,?)",user_info)#(username, password, 1 if role.lower() == "admin" else 0, str(authorized_nodes)))
         conn.commit()
 
-def get_user(user_name:str, db:str = "nodes.db") -> tuple:
+def get_user(username:str, db:str = "nodes.db") -> tuple:
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
-        cur.execute(f"SELECT * FROM users WHERE user_name = ?",(user_name,))
+        cur.execute(f"SELECT * FROM users WHERE username = ?",(username,))
         data = cur.fetchone()
-        data[4] = eval(data[4]) if data and data[4] else []  # Convert string back to list, handle empty string case
-    return data
+    return (data[0], data[1], data[2], eval(data[3]))
 
-def update_user(user_name:str, password:str = None, role:str = None, authorized_nodes:list = None, db:str = "nodes.db"):
+def update_user(username:str, password:str = None, role:str = None, authorized_nodes:list = None, db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
         if password is not None:
-            cur.execute(f"UPDATE users SET password = ? WHERE user_name = ?",(password, user_name))
+            cur.execute(f"UPDATE users SET password = ? WHERE username = ?",(password, username))
         if role is not None:
-            cur.execute(f"UPDATE users SET is_admin = ? WHERE user_name = ?",(1 if role.lower() == "admin" else 0, user_name))
+            cur.execute(f"UPDATE users SET is_admin = ? WHERE username = ?",(1 if role.lower() == "admin" else 0, username))
         if authorized_nodes is not None:
-            cur.execute(f"UPDATE users SET authorized_nodes = ? WHERE user_name = ?",(str(authorized_nodes), user_name))
+            cur.execute(f"UPDATE users SET authorized_nodes = ? WHERE username = ?",(str(authorized_nodes), username))
         conn.commit()
 
-def delete_user(user_name:str, db:str = "nodes.db"):
+def delete_user(username:str, db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
-        cur.execute(f"DELETE FROM users WHERE user_name = ?",(user_name,))
+        cur.execute(f"DELETE FROM users WHERE username = ?",(username,))
         conn.commit()
 
 def list_users(db:str = "nodes.db") -> list:
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
-        cur.execute(f"SELECT user_name FROM users")
+        cur.execute(f"SELECT username FROM users")
         data = cur.fetchall()
     return [d[0] for d in data]
 
-def authenticate_user(user_name:str, password:str, db:str = "nodes.db") -> bool:
-    user = get_user(user_name, db)
+def authenticate_user(username:str, password:str, db:str = "nodes.db") -> bool:
+    user = get_user(username, db)
     if user and user[1] == password:
         return True
     return False
 
-def get_auth_nodes(user_name:str, db:str = "nodes.db") -> list:
-    user = get_user(user_name, db)
+def get_auth_nodes(username:str, db:str = "nodes.db") -> list:
+    user = get_user(username, db)
     if user:
-        authorized_nodes_list = user[4]  # user[4] is the authorized_nodes list
+        authorized_nodes_list = user[3]  # user[4] is the authorized_nodes list
         if not authorized_nodes_list:  # If empty list, return empty list
             return []  # Access to all nodes
         return authorized_nodes_list
     return []
 
-def is_admin(user_name:str, db:str = "nodes.db") -> bool:
-    user = get_user(user_name, db)
+def is_admin(username:str, db:str = "nodes.db") -> bool:
+    user = get_user(username, db)
     if user and user[2] == 1:
         return True
     return False
@@ -233,3 +230,7 @@ def print_user_db(db:str = "nodes.db"):
         data = cur.fetchall()
         for row in data:
             print(row, end="\n")
+
+
+if __name__ == "__main__":
+    print_user_db()

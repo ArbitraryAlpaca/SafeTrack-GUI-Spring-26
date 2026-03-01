@@ -1,33 +1,27 @@
 import sys
 
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QHBoxLayout, QVBoxLayout,
     QPushButton, QLabel, QFrame, QStackedLayout
 )
 import database
-from user import User
+from login import User, LoginWindow
 
 from map import MapDisplay
-from addNode import AddNodePage
 from notification import NotificationsPage
 from backend_worker import BackendWorker
 from alert_system import AlertSystem
-#from serial_monitor import Monitor
 from simulating_nodes import Simulate #for debugging only
 
 class MainWindow(QMainWindow):
-    def __init__(self):
-
-        # initialize DB before anything else
-        database.init_db()
-        database.init_notif_db()
-        database.init_user_db()
+    logout_requested = pyqtSignal()
+    def __init__(self, user):
 
         # temp user
-        user = User("admin", "password", 1)
+        #user = User("admin", "password", 1)
 
         # Initilaize main window
         super().__init__()
@@ -49,9 +43,9 @@ class MainWindow(QMainWindow):
         # ================= SIDEBAR =================
         self.sidebar_buttons_info = [
             ("btnMap", "Map"),
-            ("btnAddNode", "Add Node"),
             ("btnNotifications", "Notifications"),
             ("btnSettings", "Settings"),
+            ("btnLogout","Logout")
         ]
         self.sidebar_buttons = {}
         sidebar = QFrame()
@@ -85,13 +79,13 @@ class MainWindow(QMainWindow):
 
         for obj_name, label in self.sidebar_buttons_info:
             icons = {"Map": r"images\map_icon.png",
-                     "Add Node": r"images\add_icon.png",
                      "Notifications": r"images\notifications_icon.png",
-                     "Settings": r"images\settings.png"}
+                     "Settings": r"images\settings.png",
+                     "Logout": r"images\logout_icon.png"}
             icn_sizes = {"Map": 30,
-                         "Add Node": 30,
                          "Notifications": 30,
-                         "Settings":30}
+                         "Settings":30,
+                         "Logout":30}
             
             icon = QIcon(icons[label])
             btn = QPushButton(label)
@@ -126,7 +120,7 @@ class MainWindow(QMainWindow):
         content_frame.setLayout(self.stacked_layout)
         content_layout.addWidget(content_frame)
 
-        self.blank_pages = {}
+        self.blank_pages = {} #for debugging only
 
         # Start backend worker to monitor DB changes in background
         self.backend = BackendWorker(user)
@@ -138,7 +132,7 @@ class MainWindow(QMainWindow):
         self.alert_system = AlertSystem(self)
         self.alert_system.viewNodeRequested.connect(self.open_node_on_map)
 
-        self.nodes = user.viewable_nodes if user.viewable_nodes else self.show_login_request()
+        self.nodes = user.viewable_nodes #if user.viewable_nodes else self.show_login_request()
 
         print(f"Loaded nodes: {self.nodes}")
         self.center = (33.42057834806449, -111.9322007773111)
@@ -148,12 +142,6 @@ class MainWindow(QMainWindow):
         )
         self.stacked_layout.addWidget(self.map_widget)
 
-        # Add Node page with callback
-        add_node_page = AddNodePage(
-            nodes_list=self.nodes,
-            on_node_added=self.node_added_callback
-        )
-        self.stacked_layout.addWidget(add_node_page)
 
         notifications_page = NotificationsPage()
         notifications_page.load_notifications()  # load notifications on init
@@ -180,15 +168,17 @@ class MainWindow(QMainWindow):
             case "btnMap":
                 self.stacked_layout.setCurrentIndex(0)
                 self.map_widget.update_map()  # refresh map data when returning to map page
-            case "btnAddNode":
-                self.stacked_layout.setCurrentIndex(1)
             case "btnNotifications":
-                self.stacked_layout.setCurrentIndex(2)
+                self.stacked_layout.setCurrentIndex(1)
                 print("Refreshing notifications page...")
                 # Refresh notifications page data when opened
                 notif_page = self.stacked_layout.currentWidget()
                 if isinstance(notif_page, NotificationsPage):
                     notif_page.load_notifications()
+            case "btnLogout":
+                print("Logging out...")
+                self.logout_requested.emit()
+                self.close()
             case _:
                 # Find the actual widget for this sidebar entry and switch to it.
                 page_widget = self.blank_pages.get(name)
@@ -233,13 +223,31 @@ class MainWindow(QMainWindow):
         # Center map on the node
         self.map_widget.center_on_node(node_id)
 
-    def show_login_request(self):
-        # Placeholder for user login system; for now just return all nodes
-        self.alert_system.show_login_alert(("System", "Login Required", "Please Login to access node data."))
-        return database.get_nodes()
+  
 
 if __name__ == "__main__":
+    database.init_db()
+    database.init_notif_db()
+    database.init_user_db()
     app = QApplication(sys.argv)
-    window = MainWindow()
-    window.show()
+
+    login_window = LoginWindow()
+    main_window = None   
+
+    def start_main(user):
+        global main_window   
+        main_window = MainWindow(user)
+
+        main_window.logout_requested.connect(show_login)
+
+        login_window.hide()
+        main_window.show()
+
+    def show_login():
+        login_window.show()
+
+    login_window.login_successful.connect(start_main)
+
+    login_window.show()
+
     sys.exit(app.exec())

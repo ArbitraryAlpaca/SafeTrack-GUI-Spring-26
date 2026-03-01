@@ -1,6 +1,6 @@
 # backend_worker.py
 from PyQt6.QtCore import QThread, pyqtSignal
-from user import User
+from login import User
 
 class BackendWorker(QThread):
     # emits the notification tuple when one is created (optional)
