@@ -17,6 +17,8 @@ from notification import NotificationsPage
 from backend_worker import BackendWorker
 from alert_system import AlertSystem
 from serial_monitor import Monitor
+from settings_window import SettingsWindow
+from settings import settings
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -55,9 +57,9 @@ class MainWindow(QMainWindow):
             ("btnSettings", "Settings"),
         ]
         self.sidebar_buttons = {}
-        sidebar = QFrame()
-        sidebar.setFixedWidth(200)
-        sidebar.setStyleSheet("""
+        self.sidebar = QFrame()
+        self.sidebar.setFixedWidth(200)
+        self.sidebar.setStyleSheet("""
             QFrame {
                 background-color: #0b1220;
                 color: #cfd8ff;
@@ -76,7 +78,7 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout = QVBoxLayout(self.sidebar)
         sidebar_layout.setContentsMargins(12, 12, 12, 12)
         sidebar_layout.setSpacing(12)
 
@@ -102,7 +104,7 @@ class MainWindow(QMainWindow):
             btn.clicked.connect(lambda checked, name=obj_name: self.on_sidebar_button(name))
 
         sidebar_layout.addStretch()
-        root_layout.addWidget(sidebar)
+        root_layout.addWidget(self.sidebar)
 
         # ================= MAIN AREA =================
         main_area = QWidget()
@@ -189,6 +191,10 @@ class MainWindow(QMainWindow):
             notif_page = self.stacked_layout.currentWidget()
             if isinstance(notif_page, NotificationsPage):
                 notif_page.load_notifications()
+        elif name == "btnSettings":
+            dlg = SettingsWindow(self)
+            dlg.settings_changed.connect(self.apply_settings)
+            dlg.exec()                
         else:
             # Find the actual widget for this sidebar entry and switch to it.
             page_widget = self.blank_pages.get(name)
@@ -203,6 +209,115 @@ class MainWindow(QMainWindow):
         print(f"Callback: New node {node_id} added, refreshing map...")
         self.map_widget.update_map()
 
+    def apply_settings(self):
+        try:
+            from settings import settings
+        except Exception:
+            print("No settings module found when applying settings.")
+            return
+
+        # Read settings with defaults
+        sidebar_color = settings.get("ui", "sidebar_color", default="#0b1220") or "#0b1220"
+        try:
+            sidebar_width = int(settings.get("ui", "sidebar_width", default=200) or 200)
+        except Exception:
+            sidebar_width = 200
+        sidebar_pos = settings.get("ui", "sidebar_position", default="left") or "left"
+
+        # Build stylesheet using .format to avoid f-string braces problems
+        base_style = """
+            QFrame {{
+                background-color: {color};
+                color: #cfd8ff;
+            }}
+            QPushButton {{
+                background: transparent;
+                border: 1px solid rgba(255,255,255,0.06);
+                padding: 8px;
+                text-align: left;
+                color: #cfd8ff;
+                border-radius: 6px;
+                margin-bottom: 6px;
+            }}
+            QPushButton:hover {{
+                background-color: #162040;
+            }}
+        """.format(color=sidebar_color)
+
+        # Apply sidebar style & width (if available)
+        if hasattr(self, "sidebar"):
+            try:
+                self.sidebar.setStyleSheet(base_style)
+                self.sidebar.setFixedWidth(sidebar_width)
+            except Exception as e:
+                print("Failed applying sidebar style:", e)
+
+        # Move sidebar left or right in central widget's layout (defensive)
+        try:
+            central_widget = self.centralWidget()
+            layout = central_widget.layout() if central_widget is not None else None
+
+            if layout and hasattr(self, "sidebar"):
+                # Remove any existing occurrence of self.sidebar in the layout
+                # We search and remove without deleting the widget itself so it can be reinserted.
+                for i in range(layout.count()-1, -1, -1):
+                    item = layout.itemAt(i)
+                    if item and item.widget() is self.sidebar:
+                        layout.takeAt(i)
+
+                # Insert at left (index 0) or append to end (right)
+                if sidebar_pos == "left":
+                    try:
+                        layout.insertWidget(0, self.sidebar)
+                    except Exception:
+                        layout.addWidget(self.sidebar)
+                else:
+                    layout.addWidget(self.sidebar)
+        except Exception as e:
+            print("Failed repositioning sidebar:", e)
+
+        # Theme: try to set map_widget stylesheet (non-invasive)
+        try:
+            theme = settings.get("ui", "theme", default="dark") or "dark"
+            if hasattr(self, "map_widget"):
+                if theme == "light":
+                    main_area_style = "background-color: #f5f7fb; color: #1a1f2b;"
+                else:
+                    main_area_style = "background-color: #070b14; color: #cfd8ff;"
+                try:
+                    # apply minimal inline styling to the map widget
+                    self.map_widget.setStyleSheet(main_area_style)
+                except Exception:
+                    pass
+        except Exception as e:
+            print("Failed applying theme:", e)
+
+        # Map size/layout: set approximate width based on window width and map_scale_percent
+        try:
+            map_pct = int(settings.get("ui", "map_scale_percent", default=70) or 70)
+            if hasattr(self, "map_widget"):
+                total_w = max(600, self.width())
+                new_map_w = int((total_w * map_pct) / 100)
+                new_map_w = max(300, min(new_map_w, total_w - 150))
+                try:
+                    self.map_widget.setFixedWidth(new_map_w)
+                except Exception:
+                    # Some map widgets (e.g. webviews) might not respect fixed width; ignore
+                    pass
+        except Exception as e:
+            print("Failed applying map scale:", e)
+
+        # Summary log
+        print(
+            "Applied settings: sidebar_color=%s width=%s pos=%s theme=%s map_pct=%s"
+            % (
+                sidebar_color,
+                sidebar_width,
+                sidebar_pos,
+                settings.get("ui", "theme"),
+                settings.get("ui", "map_scale_percent"),
+            )
+        )
     def handle_backend_notification(self, notif):
         # Called when backend detects a new notification; 
         if notif[2] == "SOS":
