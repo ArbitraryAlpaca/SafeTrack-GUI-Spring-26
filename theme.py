@@ -14,6 +14,7 @@ class Theme:
     text: str
     hover: str
     border: str
+    notification: str
 
 DARK = Theme(
     name="dark",
@@ -22,6 +23,7 @@ DARK = Theme(
     text="#cfd8ff",
     hover="#162040",
     border="#2b3a4a",
+    notification="#0f1724"
 )
 
 LIGHT = Theme(
@@ -31,6 +33,7 @@ LIGHT = Theme(
     text="#0b1220",
     hover="#e7eef9",
     border="#cfd8dc",
+    notification="#99aec3"
 )
 
 def get_theme(name: str) -> Theme:

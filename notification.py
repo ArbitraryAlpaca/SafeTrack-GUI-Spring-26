@@ -4,6 +4,7 @@
 
 import database
 from datetime import datetime
+import theme
 
 def _parse_time(val: str) -> datetime:
     try:
@@ -169,11 +170,11 @@ class NotificationsPage(QWidget):
         # shorter label and styling to match the app theme
         self.my_nodes_checkbox = QCheckBox("My Nodes")
         self.my_nodes_checkbox.setStyleSheet(
-            "QCheckBox { color: #cfd8ff; spacing:6px; font-weight:600; }"
-            "QCheckBox::indicator { width:18px; height:18px; }"
+            f"QCheckBox {{ color: {theme.get_theme(theme.load_theme_name()).text}; spacing:6px; font-weight:600; }}"
+            f"QCheckBox::indicator {{ width:18px; height:18px; }}"
         )
         title_lbl = QLabel("Notifications")
-        title_lbl.setStyleSheet("font-size:16px; font-weight:700; color: #cfd8ff;")
+        title_lbl.setStyleSheet(f"font-size:16px; font-weight:700; color: {theme.get_theme(theme.load_theme_name()).text};")
         header_layout.addWidget(title_lbl)
         header_layout.addStretch()
         header_layout.addWidget(self.filter_combo)
@@ -238,7 +239,7 @@ class NotificationsPage(QWidget):
             card = QFrame()
             card.setFrameShape(QFrame.Shape.StyledPanel)
             # keep a subtle background and rounded corners but remove inner borders
-            card.setStyleSheet("background-color: #0f1724; border-radius:8px;")
+            card.setStyleSheet(f"background-color: {theme.get_theme(theme.load_theme_name()).notification}; border-radius:8px;")
             card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
             card_layout = QHBoxLayout()
             card_layout.setContentsMargins(8, 8, 8, 8)
