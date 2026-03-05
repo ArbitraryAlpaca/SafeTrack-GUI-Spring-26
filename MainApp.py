@@ -1,4 +1,6 @@
 import sys
+import theme
+from settings_page import SettingsPage
 
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
@@ -45,6 +47,7 @@ class MainWindow(QMainWindow):
         ]
         self.sidebar_buttons = {}
         sidebar = QFrame()
+        self.sidebar = sidebar
         sidebar.setFixedWidth(200)
         sidebar.setStyleSheet("""
             QFrame {
@@ -96,6 +99,7 @@ class MainWindow(QMainWindow):
 
         # ================= MAIN AREA =================
         main_area = QWidget()
+        self.main_area = main_area
         main_area.setStyleSheet("""
             background-color: #070b14;
             color: #cfd8ff;
@@ -139,10 +143,12 @@ class MainWindow(QMainWindow):
         notifications_page = NotificationsPage()
         notifications_page.load_notifications()  # load notifications on init
         self.stacked_layout.addWidget(notifications_page)
-
-
+        self.settings_page = SettingsPage(main_window=self)
+        self.stacked_layout.addWidget(self.settings_page)   
         # ----- BLANK PAGES FOR OTHER BUTTONS -----
         for idx, (obj_name, label) in enumerate(self.sidebar_buttons_info[1:], start=1):
+            if obj_name == "btnSettings":
+                continue
             # Replace the Notifications blank page with the real NotificationsPage
             page = QFrame()
             layout = QVBoxLayout(page)
@@ -155,7 +161,22 @@ class MainWindow(QMainWindow):
 
         # Default page = MAP
         self.stacked_layout.setCurrentIndex(0)
+        self.apply_theme(theme.load_theme_name())
 
+    def apply_theme(self, theme_name: str):
+        t = theme.get_theme(theme_name)
+
+        self.sidebar.setStyleSheet(theme.sidebar_qss(t))
+        self.main_area.setStyleSheet(theme.main_area_qss(t))
+
+        if hasattr(self.map_widget, "apply_theme"):
+            self.map_widget.apply_theme(t)
+
+        if hasattr(self, "settings_page"):
+            self.settings_page.apply_theme(t.name)
+
+        theme.save_theme_name(t.name)
+    
     def on_sidebar_button(self, name):
         match name:
             case "btnMap":
@@ -168,6 +189,9 @@ class MainWindow(QMainWindow):
                 notif_page = self.stacked_layout.currentWidget()
                 if isinstance(notif_page, NotificationsPage):
                     notif_page.load_notifications()
+            case "btnSettings":
+            # Settings is index 2 in your current stack order (map=0, notif=1, settings=2)
+                self.stacked_layout.setCurrentIndex(2)
             case "btnLogout":
                 print("Logging out...")
                 self.logout_requested.emit()
