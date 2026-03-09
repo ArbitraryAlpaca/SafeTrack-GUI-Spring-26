@@ -145,7 +145,7 @@ class NotificationsPage(QWidget):
         super().__init__(parent)
 
         self.notifs = []  # cached notifications (only updated on refresh)
-        self.user = user if user else User("Guest", "", 0, [])
+        self.user = user if user else User("Guest")
 
         self.setMinimumSize(600, 400)
 
@@ -291,5 +291,3 @@ class NotificationsPage(QWidget):
     def on_my_nodes_toggled(self):
         self.my_nodes = self.my_nodes_checkbox.isChecked()
         self.load_notifications()
-
-
