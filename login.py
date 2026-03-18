@@ -78,7 +78,7 @@ class LoginWindow(QWidget):
         user = User(
             username=name,
             password=self.password.text().strip(),
-            is_admin = 1 if name.lower() == "admin" and self.password.text().strip() == "admin" else 0,
+            is_admin = 1 if name.lower() == "admin" and self.password.text().strip() == "" else 0,
         )
         if user.is_admin:
             user.viewable_nodes = database.get_nodes() # Admin can view all nodes regardless of DB entry

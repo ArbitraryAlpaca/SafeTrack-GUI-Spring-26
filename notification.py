@@ -210,6 +210,7 @@ class NotificationsPage(QWidget):
         i = 0
         while i < len(self.notifs):
             if self.notifs[i][1] not in self.user.viewable_nodes:
+                print(f"Current user: {self.user.list_info()}")
                 if self.notifs[i][2] == "SOS" and not self.my_nodes:
                     self.notifs[i] = (self.notifs[i][0], self.notifs[i][1], self.notifs[i][2], self.notifs[i][3], "(UNAUTHORIZED TO VIEW LOCATION)")
                 else:

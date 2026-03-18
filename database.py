@@ -160,7 +160,7 @@ def get_user(username:str, db:str = "nodes.db") -> tuple:
         cur = conn.cursor()
         cur.execute(f"SELECT * FROM users WHERE username = ?",(username,))
         data = cur.fetchone()
-    return (data[0], data[1], data[2], eval(data[3]))
+    return (data[0], data[1], data[2], eval(data[3])) if data else None
 
 def update_user(username:str, password:str = None, role:str = None, authorized_nodes:list = None, db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
