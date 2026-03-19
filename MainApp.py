@@ -156,10 +156,12 @@ class FilteredNotificationsPage(QWidget):
     def _set_tab(self, tab: str):
         self._active_tab = tab
         self._refresh_tab_styles()
-        # Drive the existing filter_combo on NotificationsPage
-        idx = self._notif_page.filter_combo.findText(tab)
-        if idx >= 0:
-            self._notif_page.filter_combo.setCurrentIndex(idx)
+        # Drive the wrapped NotificationsPage via its `set_filter` API
+        try:
+            self._notif_page.set_filter(tab)
+        except Exception:
+            # gracefully ignore if method missing
+            pass
 
     def _refresh_tab_styles(self):
         for t, btn in self._tab_btns.items():
@@ -273,10 +275,10 @@ class MainWindow(QMainWindow):
             ("btnMap",           "Map",           img("map_icon.png")),
             ("btnNotifications", "Notifications", img("notifications_icon.png")),
             ("btnHistory",       "History & Logs",img("history_icon.png")),
-            ("btnSettings",      "Settings",      img("settings.png")),
+            ("btnSettings",      "Settings",      img("settings_icon.png")),
         ]
         if user.is_admin:
-            self.sidebar_buttons_info.append(("btnInvite", "Invite", img("settings.png")))
+            self.sidebar_buttons_info.append(("btnInvite", "Invite", img("invite_icon.png")))
 
         self.sidebar_buttons = {}
         for obj_name, label, icon_path in self.sidebar_buttons_info:
@@ -560,7 +562,6 @@ class MainWindow(QMainWindow):
 if __name__ == "__main__":
     database.init_db()
     database.init_notif_db()
-    database.init_user_db()
     adb.init_auth_db()
 
     app = QApplication(sys.argv)
@@ -574,6 +575,33 @@ if __name__ == "__main__":
         login_window.hide()
         main_window.show()
         print(f"Logged in: {user.list_info()}")
+
+        # Connect the global user_update signal so the running main window
+        # refreshes the current user's viewable nodes when a new node is added.
+        try:
+            import login as login_module
+
+            def _on_user_update():
+                try:
+                    # refresh the user object (updates viewable_nodes for admins)
+                    login_module.refresh_user_nodes(main_window.user)
+                    # propagate the updated user to widgets that cache it
+                    try:
+                        main_window.map_widget.user = main_window.user
+                        
+                        main_window.map_widget.update_map()
+                    except Exception:
+                        pass
+                    try:
+                        main_window.alert_system.user = main_window.user
+                    except Exception:
+                        pass
+                except Exception as exc:
+                    print(f"[user_update] handler error: {exc}")
+
+            login_module.user_signals.user_update.connect(_on_user_update)
+        except Exception:
+            pass
 
     def show_login():
         login_window.show()

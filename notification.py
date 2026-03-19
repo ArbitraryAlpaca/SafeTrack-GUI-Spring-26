@@ -158,14 +158,8 @@ class NotificationsPage(QWidget):
         self.refresh_btn.setStyleSheet("QPushButton { padding:6px 10px; border:1px solid #2b3a4a; border-radius:6px; }"
                                        "QPushButton:hover {background-color: #162040;}"
         )
-        self.filter_combo = QComboBox()
-        self.filter_combo.setStyleSheet(
-            "QComboBox { padding:4px 8px 4px 8px; border:1px solid #2b3a4a; border-radius:6px; padding-right:28px; background: transparent; }"
-            "QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: center right; width: 26px; border: none; background: transparent; }"
-            "QComboBox::hover { background-color: #162040; }"
-        )
-        # filter options: All, SOS, Alert, Info, System
-        self.filter_combo.addItems(["All", "SOS", "Alert", "Info", "System"])
+        # NOTE: filter UI is provided by the outer wrapper (tab buttons).
+        # Keep internal filter state but do not expose a dropdown here.
         # shorter label and styling to match the app theme
         self.my_nodes_checkbox = QCheckBox("My Nodes")
         self.my_nodes_checkbox.setStyleSheet(
@@ -176,7 +170,7 @@ class NotificationsPage(QWidget):
         title_lbl.setStyleSheet("font-size:16px; font-weight:700; color: #cfd8ff;")
         header_layout.addWidget(title_lbl)
         header_layout.addStretch()
-        header_layout.addWidget(self.filter_combo)
+        # header_layout.addWidget(self.filter_combo)  # dropdown removed (use pills)
         header_layout.addWidget(self.my_nodes_checkbox)
         header_layout.addWidget(self.refresh_btn)
         layout.addLayout(header_layout)
@@ -194,7 +188,9 @@ class NotificationsPage(QWidget):
 
         # Connections
         self.refresh_btn.clicked.connect(self.load_notifications)
-        self.filter_combo.currentIndexChanged.connect(self.on_filter_changed)
+        # The wrapper (FilteredNotificationsPage) will call `set_filter()` on this
+        # page to apply filters via the pill buttons. Keep the slot for
+        # compatibility but do not connect a dropdown signal here.
         self.my_nodes_checkbox.stateChanged.connect(self.on_my_nodes_toggled)
 
         # Filter state: None or lowercase string
@@ -216,8 +212,27 @@ class NotificationsPage(QWidget):
                     self.notifs.pop(i)
                     i -= 1
             i += 1
-        self.current_filter = None
-        self._populate_list(self.notifs)
+        # keep whatever current_filter is set by wrapper; default show all
+        if self.current_filter is None:
+            self._populate_list(self.notifs)
+        else:
+            wanted = self.current_filter.lower()
+            filtered = [r for r in self.notifs if len(r) > 2 and str(r[2]).lower() == wanted]
+            self._populate_list(filtered)
+
+    def set_filter(self, tab: str | None):
+        """Apply a filter by tab name (e.g. 'All','SOS','Alert',...).
+        Called by an external wrapper when pill buttons are used.
+        Pass `None` or 'All' to clear the filter.
+        """
+        if tab is None or tab == "All":
+            self.current_filter = None
+            self._populate_list(self.notifs)
+            return
+        wanted = tab.lower()
+        self.current_filter = wanted
+        filtered = [r for r in self.notifs if len(r) > 2 and str(r[2]).lower() == wanted]
+        self._populate_list(filtered)
 
     def _clear_list(self):
         while self.scroll_layout.count():
@@ -276,17 +291,8 @@ class NotificationsPage(QWidget):
         """Apply the dropdown filter to the cached notifications.
         Does not query the DB; only filters in-memory list.
         Options: All, Alert, System"""
-        choice = self.filter_combo.currentText()
-        if choice == "All":
-            self.current_filter = None
-            self._populate_list(self.notifs)
-            return
-
-        # match status column (index 2) case-insensitively
-        wanted = choice.lower()
-        filtered = [r for r in self.notifs if len(r) > 2 and str(r[2]).lower() == wanted]
-        self.current_filter = wanted
-        self._populate_list(filtered)
+        # kept for compatibility if dropdown is ever re-added; no-op otherwise
+        return
 
     def on_my_nodes_toggled(self):
         self.my_nodes = self.my_nodes_checkbox.isChecked()

@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QPushButton, QFrame, QStackedWidget,
     QMessageBox, QGraphicsDropShadowEffect, QSizePolicy
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QObject
 from PyQt6.QtGui import (
     QKeySequence, QColor, QPainter, QLinearGradient, QBrush
 )
@@ -62,6 +62,30 @@ class User:
     def list_info(self):
         return (self.username, self.is_admin, self.email,
                 self.fullname, str(self.viewable_nodes))
+
+
+# Module-level signals used by other parts of the app (e.g. database)
+class UserSignals(QObject):
+    user_update = pyqtSignal()
+
+
+user_signals = UserSignals()
+
+
+def refresh_user_nodes(user: User):
+    """Refresh `viewable_nodes` on a User object (if admin).
+    This is intended to be called when a new node is added so an admin
+    user's available nodes are updated.
+    """
+    if user is None:
+        return
+    # only admins should get the full nodes list
+    if getattr(user, "is_admin", 0):
+        import database
+        try:
+            user.viewable_nodes = database.get_nodes()
+        except Exception:
+            pass
 
 
 # ════════════════════════════════════════════════════════════════
@@ -428,6 +452,7 @@ class _LoginPage(QWidget):
 class _SignUpPage(QWidget):
     go_login = pyqtSignal()
     signup_success = pyqtSignal()
+    update_user = pyqtSignal()  # emitted after successful signup to refresh user list in admin panel
 
     def __init__(self):
         super().__init__()

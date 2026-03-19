@@ -31,7 +31,7 @@ DB_PATH = "nodes.db"
 
 def _conn():
     return sqlite3.connect(DB_PATH)
-
+ 
 
 # ──────────────────────────────────────
 # SCHEMA
