@@ -49,3 +49,6 @@ nodes.db
 
 # Fernet encryption keys
 *.key
+
+# Bug File
+Bugs.txt
