@@ -274,7 +274,7 @@ class MainWindow(QMainWindow):
         self.sidebar_buttons_info = [
             ("btnMap",           "Map",           img("map_icon.png")),
             ("btnNotifications", "Notifications", img("notifications_icon.png")),
-            ("btnHistory",       "History & Logs",img("history_icon.png")),
+            ("btnHistory",       "History && Logs",img("history_icon.png")),
             ("btnSettings",      "Settings",      img("settings_icon.png")),
         ]
         if user.is_admin:

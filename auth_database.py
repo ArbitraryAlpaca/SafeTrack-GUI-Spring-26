@@ -216,6 +216,14 @@ def promote_to_admin(username: str) -> bool:
             (username,),
         )
         return cur.rowcount > 0
+    
+def remove_user(username: str) -> bool:
+    with _conn() as con:
+        cur = con.execute(
+            "DELETE FROM auth_users WHERE username = ? COLLATE NOCASE",
+            (username,),
+        )
+        return cur.rowcount > 0
 
 
 # ──────────────────────────────────────
@@ -324,3 +332,9 @@ def list_invite_codes(admin_username: str) -> list[dict]:
             "used": bool(used),
         })
     return result
+
+
+if __name__ == "__main__":
+    init_auth_db()
+    remove_user("admin")
+    create_user("admin", "", "", "admin@123", is_admin=1)

@@ -6,5 +6,3 @@ old user database functions and ititialization still in database.py [FIXED]
 
 
 Some design inconsistencies
-
-

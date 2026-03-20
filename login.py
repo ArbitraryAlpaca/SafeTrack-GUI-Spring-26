@@ -122,13 +122,13 @@ QFrame#card {
 QLabel#logo {
     font-size: 56px; font-weight: 800;
     color: #ffffff;
-    font-family: "Comic Sans MS", "Segoe UI", cursive;
+    font-family: "Segoe UI", "Arial", sans-serif;
     padding: 6px 0;
 }
 QLabel#heading {
     font-size: 17px; font-weight: 600;
     color: #ffffff; letter-spacing: 3px;
-    font-family: "Courier New", monospace;
+    font-family: "Segoe UI", "Arial", sans-serif;
 }
 QLabel#errorLabel {
     color: #ff6b6b; font-size: 12px;
@@ -147,13 +147,13 @@ QLabel#hintOk {
     padding: 0 20px; margin: 0;
 }
 QLineEdit {
-    background-color: #ffffff;
-    border: none; border-radius: 22px;
-    padding: 12px 20px; font-size: 14px;
-    color: #333333;
+    background-color: #0d1526;
+    border: 1px solid #1e2d44; border-radius: 12px;
+    padding: 12px 16px; font-size: 14px;
+    color: #cfd8e8;
 }
 QLineEdit:focus {
-    border: 2px solid #7c6fbf;
+    border: 2px solid #2563eb;
 }
 QLineEdit[validationState="invalid"] {
     border: 2px solid #ff6b6b;
@@ -162,14 +162,14 @@ QLineEdit[validationState="valid"] {
     border: 2px solid #6bffa1;
 }
 QPushButton#primary {
-    background-color: rgba(180,170,220,0.55);
-    border: 1px solid rgba(255,255,255,0.15);
+    background-color: #2563eb;
+    border: 1px solid rgba(255,255,255,0.08);
     border-radius: 24px; padding: 14px;
     font-size: 15px; font-weight: 600;
     color: white; letter-spacing: 1px;
 }
-QPushButton#primary:hover { background-color: rgba(180,170,220,0.75); }
-QPushButton#primary:pressed { background-color: rgba(140,130,190,0.8); }
+QPushButton#primary:hover { background-color: #1d4ed8; }
+QPushButton#primary:pressed { background-color: #153eab; }
 QPushButton#link {
     background: transparent; border: none;
     color: #d4cfee; font-size: 13px; padding: 0;
