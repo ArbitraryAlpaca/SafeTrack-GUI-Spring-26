@@ -2,7 +2,7 @@ import sys
 import os
 
 from PyQt6.QtGui import QIcon, QFont, QPainter, QColor, QPen
-from PyQt6.QtCore import QSize, Qt, pyqtSignal, QRect
+from PyQt6.QtCore import QSize, Qt, pyqtSignal, QRect, QTimer
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget,
     QHBoxLayout, QVBoxLayout,
@@ -20,6 +20,7 @@ from backend_worker import BackendWorker
 from alert_system import AlertSystem
 from simulating_nodes import Simulate  # for debugging only
 from settings import SettingsPage
+from history_log import HistoryLogPage
 
 
 # ═══════════════════════════════════════════════════════
@@ -49,6 +50,56 @@ class AvatarWidget(QWidget):
         p.end()
 
 
+class BadgeWidget(QWidget):
+    """Small circular badge that draws a filled circle and centered text.
+    This ensures a pixel-perfect circle on all DPI settings.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._count_text = ""
+        self._bg = QColor("#e06a6a")
+        self._fg = QColor("#ffffff")
+        self._font = QFont()
+        self._font.setPointSize(9)
+        self._font.setWeight(QFont.Weight.DemiBold)
+        self.setVisible(False)
+
+    def set_count(self, count: int):
+        if count and count > 0:
+            if count < 10:
+                w = h = 18
+                text = str(count)
+            elif count < 100:
+                w, h = 24, 18
+                text = str(count)
+            else:
+                w, h = 30, 18
+                text = '99+'
+            self._count_text = text
+            self.setFixedSize(w, h)
+            self.setVisible(True)
+        else:
+            self._count_text = ""
+            self.setVisible(False)
+        self.update()
+
+    def paintEvent(self, event):
+        if not self.isVisible():
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect()
+        # draw circle/rounded background
+        p.setBrush(self._bg)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawEllipse(r)
+        # draw text
+        p.setPen(self._fg)
+        p.setFont(self._font)
+        p.drawText(r, Qt.AlignmentFlag.AlignCenter, self._count_text)
+        p.end()
+
+
 class SidebarButton(QPushButton):
     """Nav button with left accent bar when active."""
     def __init__(self, text: str, icon_path: str = "", parent=None):
@@ -60,6 +111,9 @@ class SidebarButton(QPushButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(42)
         self._update_style()
+        # badge widget for counts (hidden by default)
+        self._badge = BadgeWidget(self)
+        self._badge.setVisible(False)
 
     def set_active(self, active: bool):
         self._active = active
@@ -99,6 +153,30 @@ class SidebarButton(QPushButton):
                 }
             """)
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # position badge near top-right inside the button
+        try:
+            x = self.width() - (self._badge.width() + 12)
+            y = (self.height() - self._badge.height()) // 2
+            self._badge.move(x, y)
+        except Exception:
+            pass
+
+    def set_badge(self, count: int):
+        try:
+            # delegate sizing/drawing to BadgeWidget
+            self._badge.set_count(count if isinstance(count, int) else 0)
+            # reposition after resize
+            try:
+                x = self.width() - (self._badge.width() + 12)
+                y = (self.height() - self._badge.height()) // 2
+                self._badge.move(x, y)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
 
 
 # ═══════════════════════════════════════════════════════
@@ -106,7 +184,7 @@ class SidebarButton(QPushButton):
 # Wraps NotificationsPage and adds category filter tabs on top
 # ═══════════════════════════════════════════════════════
 
-class FilteredNotificationsPage(QWidget):
+class FilteredPage(QWidget):
     """Adds All / SOS / Alert / Info / System filter tabs above the
     existing NotificationsPage widget from notification.py."""
 
@@ -121,9 +199,9 @@ class FilteredNotificationsPage(QWidget):
         "System": ("#2e1065", "#a78bfa", "#a78bfa"),
     }
 
-    def __init__(self, notif_page: NotificationsPage, parent=None):
+    def __init__(self, page, parent=None):
         super().__init__(parent)
-        self._notif_page = notif_page
+        self.page = page
         self._active_tab = "All"
 
         outer = QVBoxLayout(self)
@@ -149,7 +227,7 @@ class FilteredNotificationsPage(QWidget):
         tab_lay.addStretch()
 
         outer.addWidget(tab_bar)
-        outer.addWidget(notif_page)
+        outer.addWidget(self.page)
 
         self._refresh_tab_styles()
 
@@ -158,7 +236,7 @@ class FilteredNotificationsPage(QWidget):
         self._refresh_tab_styles()
         # Drive the wrapped NotificationsPage via its `set_filter` API
         try:
-            self._notif_page.set_filter(tab)
+            self.page.set_filter(tab)
         except Exception:
             # gracefully ignore if method missing
             pass
@@ -196,9 +274,12 @@ class FilteredNotificationsPage(QWidget):
                     }
                 """)
 
-    def load_notifications(self):
+    def load(self):
         """Delegates to the inner page and reapplies the current filter."""
-        self._notif_page.load_notifications()
+        if isinstance(self.page, NotificationsPage):
+            self.page.load_notifications()
+        elif isinstance(self.page, HistoryLogPage):
+            self.page.load_history_logs()
         self._set_tab(self._active_tab)
 
 
@@ -393,39 +474,30 @@ class MainWindow(QMainWindow):
         self.backend.notification_signal.connect(self.handle_backend_notification)
         self.backend.start()
 
+        # start a timer to refresh unread notification badge periodically
+        self._notif_timer = QTimer(self)
+        self._notif_timer.timeout.connect(self.update_notif_badge)
+        self._notif_timer.start(2000)
+
         # ── MAP PAGE ──
         self.alert_system = AlertSystem(self, user)
         self.alert_system.viewNodeRequested.connect(self.open_node_on_map)
 
         self.center = (33.42057834806449, -111.9322007773111)
         self.map_widget = MapDisplay(center_coord=self.center, user=user)
-        self.stacked_layout.addWidget(self.map_widget)
+        self.stacked_layout.addWidget(self.map_widget) # index 0
 
         # ── NOTIFICATIONS PAGE (wrapped with category filter tabs) ──
         _inner_notif = NotificationsPage(user=user)
-        _inner_notif.load_notifications()
-        self.notifications_page = FilteredNotificationsPage(_inner_notif)
+        self.notifications_page = FilteredPage(_inner_notif)
+        self.notifications_page.load()
         self.stacked_layout.addWidget(self.notifications_page)  # index 1
 
         # ── HISTORY PAGE (placeholder until history.py is integrated) ──
-        history_page = QFrame()
-        history_page.setStyleSheet("background: transparent;")
-        h_layout = QVBoxLayout(history_page)
-        h_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        h_icon = QLabel("📋")
-        h_icon.setStyleSheet("font-size: 48px; color: #1e2d44;")
-        h_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        h_layout.addWidget(h_icon)
-        h_title = QLabel("History & Logs")
-        h_title.setStyleSheet("font-size: 22px; font-weight: 600; color: #2a3a52;")
-        h_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        h_layout.addWidget(h_title)
-        h_sub = QLabel("Share history.py to complete this page")
-        h_sub.setStyleSheet("font-size: 13px; color: #1e2d44;")
-        h_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        h_layout.addWidget(h_sub)
-        self.stacked_layout.addWidget(history_page)             # index 2
-        self.blank_pages["btnHistory"] = history_page
+        _inner_histroy = HistoryLogPage(user=user)
+        self.history_page = FilteredPage(_inner_histroy)
+        self.history_page.load()
+        self.stacked_layout.addWidget(self.history_page)  # index 2
 
         # ── SETTINGS PAGE ──
         self.settings_page = SettingsPage(user=user)
@@ -487,14 +559,16 @@ class MainWindow(QMainWindow):
             case "btnNotifications":
                 self._set_active(name)
                 self.stacked_layout.setCurrentIndex(1)
-                self.notifications_page.load_notifications()
+                self.notifications_page.load()
+                # immediately refresh badge after opening notifications (badge will clear after page marks read)
+                try:
+                    QTimer.singleShot(400, self.update_notif_badge)
+                except Exception:
+                    pass
             case "btnHistory":
                 self._set_active(name)
-                page_widget = self.blank_pages.get("btnHistory")
-                if page_widget is not None:
-                    idx = self.stacked_layout.indexOf(page_widget)
-                    if idx != -1:
-                        self.stacked_layout.setCurrentIndex(idx)
+                self.stacked_layout.setCurrentIndex(2)
+                self.history_page.load()
             case "btnSettings":
                 self._set_active(name)
                 self.settings_page.show_section("Account")
@@ -539,6 +613,11 @@ class MainWindow(QMainWindow):
             self.alert_system.show_alert_node(notif)
         if self.stacked_layout.currentWidget() == self.map_widget:
             self.map_widget.update_map()
+        # update badge immediately when backend reports a new notification
+        try:
+            self.update_notif_badge()
+        except Exception:
+            pass
 
     def closeEvent(self, event):
         if hasattr(self, "backend"):
@@ -553,6 +632,19 @@ class MainWindow(QMainWindow):
         self.stacked_layout.setCurrentIndex(0)
         self._set_active("btnMap")
         self.map_widget.center_on_node(node_id)
+
+    def update_notif_badge(self):
+        try:
+            rows = database.get_unread_notifs()
+            count = len(rows) if rows else 0
+            btn = self.sidebar_buttons.get("btnNotifications")
+            if btn:
+                try:
+                    btn.set_badge(count)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
 
 # ═══════════════════════════════════════════════════════

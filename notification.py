@@ -1,6 +1,6 @@
 # ----------------- Notifications Backend -----------------
 
-# Notif = (time, node_id, status, title, message)
+# Notif = (time, node_id, status, title, message, is_read)
 
 import database
 from datetime import datetime
@@ -65,18 +65,18 @@ def new_row_notifications(data: tuple) -> tuple:
         title = f"New Node {data[1]} SOS Alert"
         # data[2] = latitude, data[3] = longitude
         message = f"Current location: {data[2]:.6f}, {data[3]:.6f}"
-        n = (data[0], data[1], "SOS", title, message)
+        n = (data[0], data[1], "SOS", title, message, 0)
     else:
         title = f"Node {data[1]} has been added"
         message = f"Current location: {data[2]:.6f}, {data[3]:.6f}"
-        n = (data[0], data[1], "System", title, message)
+        n = (data[0], data[1], "System", title, message, 0)
     database.add_notif(n)
     return n
 
 def removed_row_notifications(data: tuple) -> tuple:
     title = f"Node {data[1]} has been removed"
     message = f"Last recorded location: {data[2]:.6f}, {data[3]:.6f}"
-    n = (data[0], data[1], "System", title, message)
+    n = (data[0], data[1], "System", title, message, 0)
     database.add_notif(n)
     return n
 
@@ -101,19 +101,19 @@ def updated_row_notifications(old_row: tuple, new_row: tuple) -> tuple:
             title = f"Node {node} SOS Alert"
             # new_lat, new_lon computed from new_row (lat, long)
             message = f"Location: {new_lat:.6f}, {new_lon:.6f}"
-            n = (new_row[0], node, "SOS", title, message)
+            n = (new_row[0], node, "SOS", title, message, 0)
         elif new_status == "inactive":
             title = f"Node {node} Disconnected"
             message = f"Last known location: {new_lat:.6f}, {new_lon:.6f}"
-            n = (new_row[0], node, "Alert", title, message)
+            n = (new_row[0], node, "Alert", title, message, 0)
         elif new_status == "active":
             title = f"Node {node} Reconnected"
             message = f"Present location: {new_lat:.6f}, {new_lon:.6f}"
-            n = (new_row[0], node, "Alert", title, message)
+            n = (new_row[0], node, "Alert", title, message, 0)
         else:
             title = f"Node {node} Status: {new_status}"
             message = f"Location: {new_lat:.6f}, {new_lon:.6f}"
-            n = (new_row[0], node, "Info", title, message)
+            n = (new_row[0], node, "Info", title, message, 0)
         database.add_notif(n)
         return n
 
@@ -122,7 +122,7 @@ def updated_row_notifications(old_row: tuple, new_row: tuple) -> tuple:
     if abs(old_lat - new_lat) > eps or abs(old_lon - new_lon) > eps:
         title = f"Node {node} Location Update"
         message = f"Location: {new_lat:.6f}, {new_lon:.6f}"
-        n = (new_row[0], node, "Info", title, message)
+        n = (new_row[0], node, "Info", title, message, 0)
         database.add_notif(n)
         return n
 
@@ -136,7 +136,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QScrollArea,
     QFrame, QLabel, QComboBox, QSizePolicy, QCheckBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from login import User
 
 
@@ -145,6 +145,7 @@ class NotificationsPage(QWidget):
         super().__init__(parent)
 
         self.notifs = []  # cached notifications (only updated on refresh)
+        self._raw_notifs = []  # original rows fetched from DB before view filtering
         self.user = user if user else User("Guest")
 
         self.setMinimumSize(600, 400)
@@ -200,25 +201,97 @@ class NotificationsPage(QWidget):
         self.my_nodes_checkbox.setChecked(self.my_nodes)
 
     def load_notifications(self):
-        """Fetch notifications from the DB and populate the list of cards.
-        Intentionally only called when the Refresh button is pressed."""
-        self.notifs = database.get_notifs()
-        i = 0
-        while i < len(self.notifs):
-            if self.notifs[i][1] not in self.user.viewable_nodes:
-                if self.notifs[i][2] == "SOS" and not self.my_nodes:
-                    self.notifs[i] = (self.notifs[i][0], self.notifs[i][1], self.notifs[i][2], self.notifs[i][3], "(UNAUTHORIZED TO VIEW LOCATION)")
+        """Fetch unread notifications from the DB and populate the list of cards.
+        Marks all fetched notifications as read so they won't appear on next visit.
+        Called on explicit Refresh and when the page is shown."""
+        # ensure UI cleared immediately so message appears even on early calls
+        self._clear_list()
+        print("load_notifications(): called")
+        # get only unread notifications (includes is_read column now)
+        try:
+            rows = database.get_unread_notifs()
+        except Exception as e:
+            print(f"load_notifications(): get_unread_notifs failed: {e}")
+            rows = []
+
+        # normalize: some DBs may return rows with 6 columns (including is_read)
+        # while older schemas may return only 5; prefer the explicit unread query.
+        self._raw_notifs = rows if rows else []
+        print(f"load_notifications(): fetched {len(self.notifs)} unread rows")
+        if self.notifs:
+            try:
+                print(f"load_notifications(): first row sample: {self.notifs[0]}")
+            except Exception:
+                pass
+        # fallback: scan all notifications and pick those with is_read==0 when present
+        if not self._raw_notifs:
+            try:
+                alln = database.get_notifs()
+                fallback = []
+                for r in alln:
+                    if len(r) > 5:
+                        try:
+                            if int(r[5]) == 0:
+                                fallback.append(r)
+                        except Exception:
+                            continue
+                self._raw_notifs = fallback
+                if fallback:
+                    print(f"load_notifications(): fallback found {len(fallback)} unread rows")
+            except Exception as e:
+                print(f"load_notifications(): fallback get_notifs failed: {e}")
+        # apply view filtering to the raw rows without mutating the original list
+        visible = []
+        for idx, r in enumerate(self._raw_notifs):
+            try:
+                nid = r[1]
+            except Exception:
+                continue
+            print(f"filtering raw idx={idx} node_id={nid} type={type(nid)} viewable={self.user.viewable_nodes}")
+            if nid not in self.user.viewable_nodes:
+                # if SOS and the UI is not limited to 'My Nodes', show unauthorized placeholder
+                if len(r) > 2 and r[2] == "SOS" and not self.my_nodes:
+                    visible.append((r[0], r[1], r[2], r[3], "(UNAUTHORIZED TO VIEW LOCATION)"))
                 else:
-                    self.notifs.pop(i)
-                    i -= 1
-            i += 1
+                    # skip rows the user cannot view
+                    continue
+            else:
+                visible.append(r)
+
+        self.notifs = visible
         # keep whatever current_filter is set by wrapper; default show all
         if self.current_filter is None:
-            self._populate_list(self.notifs)
+            rows_to_show = self.notifs
         else:
             wanted = self.current_filter.lower()
-            filtered = [r for r in self.notifs if len(r) > 2 and str(r[2]).lower() == wanted]
-            self._populate_list(filtered)
+            rows_to_show = [r for r in self.notifs if len(r) > 2 and str(r[2]).lower() == wanted]
+
+        # If there are no unread notifications to show, display a message
+        if not rows_to_show:
+            lbl = QLabel("No new notifications")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setStyleSheet("font-size:14px; color: gray; padding:20px;")
+            self.scroll_layout.addWidget(lbl)
+            self.scroll_layout.addStretch()
+        else:
+            self._populate_list(rows_to_show)
+
+        # mark all unread notifications as read after a short delay so
+        # duplicate/early calls to `load_notifications()` don't hide items
+        # before the UI has a chance to render them.
+        try:
+            QTimer.singleShot(200, self._mark_read_delayed)
+        except Exception:
+            try:
+                database.mark_all_notifs_read()
+            except Exception:
+                pass
+
+    def _mark_read_delayed(self):
+        try:
+            database.mark_all_notifs_read()
+        except Exception:
+            pass
 
     def set_filter(self, tab: str | None):
         """Apply a filter by tab name (e.g. 'All','SOS','Alert',...).
@@ -227,12 +300,22 @@ class NotificationsPage(QWidget):
         """
         if tab is None or tab == "All":
             self.current_filter = None
-            self._populate_list(self.notifs)
+            rows = self.notifs
+        else:
+            wanted = tab.lower()
+            self.current_filter = wanted
+            rows = [r for r in self.notifs if len(r) > 2 and str(r[2]).lower() == wanted]
+
+        if not rows:
+            self._clear_list()
+            lbl = QLabel("No new notifications")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setStyleSheet("font-size:14px; color: gray; padding:20px;")
+            self.scroll_layout.addWidget(lbl)
+            self.scroll_layout.addStretch()
             return
-        wanted = tab.lower()
-        self.current_filter = wanted
-        filtered = [r for r in self.notifs if len(r) > 2 and str(r[2]).lower() == wanted]
-        self._populate_list(filtered)
+
+        self._populate_list(rows)
 
     def _clear_list(self):
         while self.scroll_layout.count():
@@ -295,5 +378,35 @@ class NotificationsPage(QWidget):
         return
 
     def on_my_nodes_toggled(self):
+        # Toggle the local filter state and reapply filtering to the already-fetched
+        # notification rows so we do NOT requery the DB (which would mark them read).
         self.my_nodes = self.my_nodes_checkbox.isChecked()
-        self.load_notifications()
+        # Recompute visible notifications from the original raw rows
+        visible = []
+        for idx, r in enumerate(self._raw_notifs):
+            try:
+                nid = r[1]
+            except Exception:
+                continue
+            if nid not in self.user.viewable_nodes:
+                if len(r) > 2 and r[2] == "SOS" and not self.my_nodes:
+                    visible.append((r[0], r[1], r[2], r[3], "(UNAUTHORIZED TO VIEW LOCATION)"))
+                else:
+                    continue
+            else:
+                visible.append(r)
+
+        self.notifs = visible
+        # reapply the current category filter and update UI without touching the DB
+        if self.current_filter is None:
+            self._populate_list(self.notifs)
+        else:
+            self.set_filter(self.current_filter)
+
+    def showEvent(self, event):
+        # When the page becomes visible, load unread notifications
+        try:
+            self.load_notifications()
+        except Exception as e:
+            print(f"showEvent: load_notifications raised: {e}")
+        super().showEvent(event)

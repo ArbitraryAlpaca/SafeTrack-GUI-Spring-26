@@ -118,11 +118,20 @@ def in_db(node_id:int, db:str = "nodes.db") -> bool:
 def init_notif_db(db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
-        cur.execute(f"CREATE TABLE IF NOT EXISTS notifications (time TEXT, node_id INTEGER, status TEXT,Title TEXT, Message TEXT)")
+        cur.execute(f"CREATE TABLE IF NOT EXISTS notifications (time TEXT, node_id INTEGER, status TEXT,Title TEXT, Message TEXT, is_read INTEGER DEFAULT 0)")
 
 def add_notif(vals:tuple, db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
-        conn.execute(f"INSERT INTO notifications VALUES (?,?,?,?,?)",vals)
+        conn.execute(f"INSERT INTO notifications (time, node_id, status, Title, Message, is_read) VALUES (?,?,?,?,?,?)",vals)
+        try:
+            conn.commit()
+        except Exception:
+            pass
+
+def mark_notif_read(notif_id:int, db:str = "nodes.db"):
+    with sqlite3.connect(db) as conn:
+        conn.execute(f"UPDATE notifications SET is_read = 1 WHERE id = ?", (notif_id,))
+        conn.commit()
 
 def get_notifs(db:str = "nodes.db") -> list:
     with sqlite3.connect(db) as conn:
@@ -131,10 +140,32 @@ def get_notifs(db:str = "nodes.db") -> list:
         data = cur.fetchall()
     return data
 
-def print_notifs(db:str = "nodes.db"):
+def get_unread_notifs(db:str = "nodes.db") -> list:
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
-        cur.execute(f"SELECT * FROM notifications")
+        cur.execute(f"SELECT time, node_id, status, Title, Message, is_read FROM notifications WHERE is_read = 0 ORDER BY time DESC")
+        data = cur.fetchall()
+    return data
+
+def mark_all_notifs_read(db:str = "nodes.db"):
+    with sqlite3.connect(db) as conn:
+        conn.execute(f"UPDATE notifications SET is_read = 1 WHERE is_read = 0")
+        conn.commit()
+
+def get_logs(db:str = "nodes.db") -> list:
+    with sqlite3.connect(db) as conn:
+        cur = conn.cursor()
+        cur.execute(f"SELECT time, node_id, status, Title, Message FROM notifications ORDER BY time DESC")
+        data = cur.fetchall()
+    return data
+
+def print_notifs(db:str = "nodes.db",  only_unread:bool = False):
+    with sqlite3.connect(db) as conn:
+        cur = conn.cursor()
+        if only_unread:
+            cur.execute(f"SELECT time, node_id, status, Title, Message FROM notifications WHERE is_read = 0")
+        else:
+            cur.execute(f"SELECT * FROM notifications")
         data = cur.fetchall()
         for row in data:
             print(row, end="\n")
