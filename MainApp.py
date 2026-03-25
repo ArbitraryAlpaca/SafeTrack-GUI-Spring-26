@@ -18,6 +18,7 @@ from map import MapDisplay
 from notification import NotificationsPage
 from backend_worker import BackendWorker
 from alert_system import AlertSystem
+from serial_monitor import Monitor
 from simulating_nodes import Simulate  # for debugging only
 from settings import SettingsPage
 from history_log import HistoryLogPage
@@ -296,7 +297,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1200, 700)
         self.user = user
 
-        self.port = "COM9"
+        self.port = "COM7"
         self.hrs = 48
         monitor = Simulate(self.port, self.hrs)
         monitor.start()
