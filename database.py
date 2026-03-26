@@ -26,6 +26,18 @@ def add_to_db(vals:tuple, db:str = "nodes.db"):
         print(vals, "VALS")
         with sqlite3.connect(db) as conn:
             conn.execute(f"INSERT INTO nodes VALUES (?,?,?,?,?)",vals)
+            try:
+                conn.commit()
+            except Exception:
+                pass
+            # emit a signal so UI (or other listeners) can refresh user-visible nodes
+            try:
+                import login
+                # login.user_signals is a QObject with `user_update` signal
+                login.user_signals.user_update.emit()
+            except Exception as e:
+                print(f"[signals] user_update emit failed: {e}")
+            
     else:
         print("***ERROR: VALUE FORMATTING FAILED***")
 
@@ -106,11 +118,20 @@ def in_db(node_id:int, db:str = "nodes.db") -> bool:
 def init_notif_db(db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
         cur = conn.cursor()
-        cur.execute(f"CREATE TABLE IF NOT EXISTS notifications (time TEXT, node_id INTEGER, status TEXT,Title TEXT, Message TEXT)")
+        cur.execute(f"CREATE TABLE IF NOT EXISTS notifications (time TEXT, node_id INTEGER, status TEXT,Title TEXT, Message TEXT, is_read INTEGER DEFAULT 0)")
 
 def add_notif(vals:tuple, db:str = "nodes.db"):
     with sqlite3.connect(db) as conn:
-        conn.execute(f"INSERT INTO notifications VALUES (?,?,?,?,?)",vals)
+        conn.execute(f"INSERT INTO notifications (time, node_id, status, Title, Message, is_read) VALUES (?,?,?,?,?,?)",vals)
+        try:
+            conn.commit()
+        except Exception:
+            pass
+
+def mark_notif_read(notif_id:int, db:str = "nodes.db"):
+    with sqlite3.connect(db) as conn:
+        conn.execute(f"UPDATE notifications SET is_read = 1 WHERE id = ?", (notif_id,))
+        conn.commit()
 
 def get_notifs(db:str = "nodes.db") -> list:
     with sqlite3.connect(db) as conn:
@@ -119,8 +140,35 @@ def get_notifs(db:str = "nodes.db") -> list:
         data = cur.fetchall()
     return data
 
+def get_unread_notifs(db:str = "nodes.db") -> list:
+    with sqlite3.connect(db) as conn:
+        cur = conn.cursor()
+        cur.execute(f"SELECT time, node_id, status, Title, Message, is_read FROM notifications WHERE is_read = 0 ORDER BY time DESC")
+        data = cur.fetchall()
+    return data
 
+def mark_all_notifs_read(db:str = "nodes.db"):
+    with sqlite3.connect(db) as conn:
+        conn.execute(f"UPDATE notifications SET is_read = 1 WHERE is_read = 0")
+        conn.commit()
 
+def get_logs(db:str = "nodes.db") -> list:
+    with sqlite3.connect(db) as conn:
+        cur = conn.cursor()
+        cur.execute(f"SELECT time, node_id, status, Title, Message FROM notifications ORDER BY time DESC")
+        data = cur.fetchall()
+    return data
+
+def print_notifs(db:str = "nodes.db",  only_unread:bool = False):
+    with sqlite3.connect(db) as conn:
+        cur = conn.cursor()
+        if only_unread:
+            cur.execute(f"SELECT time, node_id, status, Title, Message FROM notifications WHERE is_read = 0")
+        else:
+            cur.execute(f"SELECT * FROM notifications")
+        data = cur.fetchall()
+        for row in data:
+            print(row, end="\n")
 
 
 '''CAUTION: The following functions are for testing purposes only. Do not use in backend code as they may cause data loss.'''
@@ -137,100 +185,6 @@ def CLEAR_NOTIF_DB(db:str = "nodes.db"):
         cur.execute(f"DELETE FROM notifications")
         conn.commit()
 
-# Login/Users database functions
-
-def init_user_db(db:str = "nodes.db"):
-    with sqlite3.connect(db) as conn:
-        cur = conn.cursor()
-        cur.execute(f"""CREATE TABLE IF NOT EXISTS users (
-                    username TEXT PRIMARY KEY, 
-                    password TEXT, 
-                    is_admin INTEGER DEFAULT 0, 
-                    authorized_nodes TEXT DEFAULT '[]')""") # athorized_nodes format = [1,2,3] Where int is node_id. Empty string means access to all nodes.
-        conn.commit()
-        cur.close()
-
-def add_user(user_info:tuple, db:str = "nodes.db"):#username:str, password:str, role:str = "user", authorized_nodes:list = [], db:str = "nodes.db"):
-    with sqlite3.connect(db) as conn:
-        conn.execute(f"INSERT INTO users VALUES (?,?,?,?)",user_info)#(username, password, 1 if role.lower() == "admin" else 0, str(authorized_nodes)))
-        conn.commit()
-
-def get_user(username:str, db:str = "nodes.db") -> tuple:
-    with sqlite3.connect(db) as conn:
-        cur = conn.cursor()
-        cur.execute(f"SELECT * FROM users WHERE username = ?",(username,))
-        data = cur.fetchone()
-    return (data[0], data[1], data[2], eval(data[3])) if data else None
-
-def update_user(username:str, password:str = None, role:str = None, authorized_nodes:list = None, db:str = "nodes.db"):
-    with sqlite3.connect(db) as conn:
-        cur = conn.cursor()
-        if password is not None:
-            cur.execute(f"UPDATE users SET password = ? WHERE username = ?",(password, username))
-        if role is not None:
-            cur.execute(f"UPDATE users SET is_admin = ? WHERE username = ?",(1 if role.lower() == "admin" else 0, username))
-        if authorized_nodes is not None:
-            cur.execute(f"UPDATE users SET authorized_nodes = ? WHERE username = ?",(str(authorized_nodes), username))
-        conn.commit()
-
-def delete_user(username:str, db:str = "nodes.db"):
-    with sqlite3.connect(db) as conn:
-        cur = conn.cursor()
-        cur.execute(f"DELETE FROM users WHERE username = ?",(username,))
-        conn.commit()
-
-def list_users(db:str = "nodes.db") -> list:
-    with sqlite3.connect(db) as conn:
-        cur = conn.cursor()
-        cur.execute(f"SELECT username FROM users")
-        data = cur.fetchall()
-    return [d[0] for d in data]
-
-def authenticate_user(username:str, password:str, db:str = "nodes.db") -> bool:
-    user = get_user(username, db)
-    if user and user[1] == password:
-        return True
-    return False
-
-def get_auth_nodes(username:str, db:str = "nodes.db") -> list:
-    user = get_user(username, db)
-    if user:
-        authorized_nodes_list = user[3]  # user[4] is the authorized_nodes list
-        if not authorized_nodes_list:  # If empty list, return empty list
-            return []  # Access to all nodes
-        return authorized_nodes_list
-    return []
-
-def is_admin(username:str, db:str = "nodes.db") -> bool:
-    user = get_user(username, db)
-    if user and user[2] == 1:
-        return True
-    return False
-
-# For testing purposes only. Do not use in backend code as they may cause data loss.
-
-def CLEAR_USER_DB(db:str = "nodes.db"):
-    with sqlite3.connect(db) as conn:
-        cur = conn.cursor()
-        cur.execute(f"DELETE FROM users")
-        conn.commit()
-
-def print_users(db:str = "nodes.db"):
-    with sqlite3.connect(db) as conn:
-        cur = conn.cursor()
-        cur.execute(f"SELECT * FROM users")
-        data = cur.fetchall()
-        for row in data:
-            print(row, end="\n")
-
-def print_user_db(db:str = "nodes.db"):
-    with sqlite3.connect(db) as conn:
-        cur = conn.cursor()
-        cur.execute(f"SELECT * FROM users")
-        data = cur.fetchall()
-        for row in data:
-            print(row, end="\n")
-
-
 if __name__ == "__main__":
-    print_user_db()
+    print_db()
+    print_notifs()

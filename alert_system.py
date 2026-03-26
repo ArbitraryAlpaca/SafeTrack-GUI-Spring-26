@@ -9,7 +9,7 @@ class AlertSystem(QObject):
     def __init__(self, parent=None, user:User=None):
         super().__init__(parent)
         self.parent = parent
-        self.user = user if user else User("Guest", "", 0, [])
+        self.user = user if user else User("Guest")
 
     def show_alert_node(self, notification):
         msg = QMessageBox(self.parent)

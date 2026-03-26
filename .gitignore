@@ -46,3 +46,9 @@ nodes.db
 # Caches
 .mypy_cache/
 .cache/
+
+# Fernet encryption keys
+*.key
+
+# Bug File
+Bugs.txt
