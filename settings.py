@@ -234,7 +234,130 @@ class _PlaceholderPanel(QWidget):
         sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(sub)
 
+class _NodesPanel(QWidget):
+    def __init__(self, user: User, parent=None):
+        super().__init__(parent)
+        self.user = user
+        self.setStyleSheet("background: transparent;")
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 16)
+        lay.setSpacing(14)
 
+        title = QLabel("Device & Nodes")
+        title.setStyleSheet("color: #f1f5f9; font-size: 17px; font-weight: 700;")
+        lay.addWidget(title)
+
+        if user.is_admin:
+            self._build_admin_view(lay)
+        else:
+            self._build_user_view(lay)
+
+    def _build_user_view(self, lay):
+        sub = QLabel("Your assigned nodes:")
+        sub.setStyleSheet("color: #94a3b8; font-size: 13px;")
+        lay.addWidget(sub)
+
+        if not self.user.viewable_nodes:
+            none_lbl = QLabel("No nodes assigned to your account yet.")
+            none_lbl.setStyleSheet("color: #475569; font-size: 13px;")
+            lay.addWidget(none_lbl)
+        else:
+            for nid in self.user.viewable_nodes:
+                row = QLabel(f"  📡  Node {nid}")
+                row.setStyleSheet(
+                    "background: #0d1526; border: 1px solid #1e2d44;"
+                    "border-radius: 8px; padding: 8px 12px; color: #cfd8e8;"
+                )
+                lay.addWidget(row)
+        lay.addStretch()
+
+    def _build_admin_view(self, lay):
+        sub = QLabel("Assign nodes to users (admin only):")
+        sub.setStyleSheet("color: #94a3b8; font-size: 13px;")
+        lay.addWidget(sub)
+
+        from PyQt6.QtWidgets import QComboBox, QSpinBox
+        row1 = QHBoxLayout()
+        self.user_combo = QComboBox()
+        self.user_combo.setStyleSheet(
+            "QComboBox { background: #0d1526; border: 1px solid #1e2d44;"
+            "border-radius: 8px; padding: 6px 12px; color: #cfd8e8; }"
+        )
+        self._users_data = adb.get_all_users_with_nodes()
+        for u in self._users_data:
+            self.user_combo.addItem(f"{u['username']} ({'admin' if u['is_admin'] else 'user'})")
+        row1.addWidget(QLabel("User:"))
+        row1.addWidget(self.user_combo, stretch=1)
+        lay.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        self.node_spin = QSpinBox()
+        self.node_spin.setRange(1, 9999)
+        self.node_spin.setStyleSheet(
+            "QSpinBox { background: #0d1526; border: 1px solid #1e2d44;"
+            "border-radius: 8px; padding: 6px 12px; color: #cfd8e8; }"
+        )
+        assign_btn = QPushButton("Assign Node")
+        assign_btn.setStyleSheet(
+            "QPushButton { background: #2563eb; color: #fff; border: none;"
+            "border-radius: 8px; padding: 6px 16px; font-weight: 700; }"
+            "QPushButton:hover { background: #1d4ed8; }"
+        )
+        revoke_btn = QPushButton("Revoke Node")
+        revoke_btn.setStyleSheet(
+            "QPushButton { background: #ef4444; color: #fff; border: none;"
+            "border-radius: 8px; padding: 6px 16px; font-weight: 700; }"
+            "QPushButton:hover { background: #dc2626; }"
+        )
+        assign_btn.clicked.connect(self._assign)
+        revoke_btn.clicked.connect(self._revoke)
+        row2.addWidget(QLabel("Node ID:"))
+        row2.addWidget(self.node_spin)
+        row2.addWidget(assign_btn)
+        row2.addWidget(revoke_btn)
+        row2.addStretch()
+        lay.addLayout(row2)
+
+        self.status_lbl = QLabel("")
+        self.status_lbl.setStyleSheet("color: #6bffa1; font-size: 12px;")
+        lay.addWidget(self.status_lbl)
+
+        self.assignments_lbl = QLabel("")
+        self.assignments_lbl.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        self.assignments_lbl.setWordWrap(True)
+        lay.addWidget(self.assignments_lbl)
+        self.user_combo.currentIndexChanged.connect(self._refresh_assignments)
+        self._refresh_assignments(0)
+        lay.addStretch()
+
+    def _current_username(self) -> str:
+        idx = self.user_combo.currentIndex()
+        if 0 <= idx < len(self._users_data):
+            return self._users_data[idx]["username"]
+        return ""
+
+    def _refresh_assignments(self, _idx):
+        uname = self._current_username()
+        if not uname:
+            return
+        nodes = adb.get_user_nodes(uname)
+        self.assignments_lbl.setText(
+            f"Currently assigned: {nodes if nodes else 'none'}"
+        )
+
+    def _assign(self):
+        uname = self._current_username()
+        nid = self.node_spin.value()
+        if adb.assign_node(uname, nid):
+            self.status_lbl.setText(f"✓ Node {nid} assigned to {uname}")
+            self._refresh_assignments(0)
+
+    def _revoke(self):
+        uname = self._current_username()
+        nid = self.node_spin.value()
+        if adb.revoke_node(uname, nid):
+            self.status_lbl.setText(f"Node {nid} revoked from {uname}")
+            self._refresh_assignments(0)
 # ───────────────────────────────────────────────────────
 # CHANGE PASSWORD DIALOG
 # ───────────────────────────────────────────────────────
@@ -301,14 +424,32 @@ class _ChangePasswordDialog(QWidget):
         self.show()
 
     def _save(self):
-        if self.new_pw.text() != self.confirm_pw.text():
+        current = self.current_pw.text()
+        new_pw  = self.new_pw.text()
+        confirm = self.confirm_pw.text()
+
+        if not current or not new_pw:
+            QMessageBox.warning(self, "Missing Fields", "All fields are required.")
+            return
+        if new_pw != confirm:
             QMessageBox.warning(self, "Mismatch", "New passwords do not match.")
             return
-        if not self.new_pw.text():
-            QMessageBox.warning(self, "Empty", "New password cannot be empty.")
+
+        # Verify current password
+        result = adb.authenticate_user(self.user.username, current)
+        if result is None:
+            QMessageBox.warning(self, "Wrong Password", "Current password is incorrect.")
             return
+
+        from auth_utils import validate_password
+        ok, msg = validate_password(new_pw, self.user.username)
+        if not ok:
+            QMessageBox.warning(self, "Weak Password", msg)
+            return
+
+        adb.update_password(self.user.username, new_pw)
         QMessageBox.information(self, "Password Changed",
-                                "Your password has been updated successfully.")
+                            "Your password has been updated successfully.")
         self.close()
 
 
@@ -432,9 +573,12 @@ class SettingsPage(QWidget):
         self._stack.setStyleSheet("background: transparent; border: none;")
 
         self._panels: dict[str, QWidget] = {}
+
         for icon, label in self._SECTIONS:
             if label == "Account":
                 panel = _AccountPanel(user)
+            elif label == "Device & Nodes":
+                panel = _NodesPanel(user)
             else:
                 panel = _PlaceholderPanel(icon, label)
             self._stack.addWidget(panel)

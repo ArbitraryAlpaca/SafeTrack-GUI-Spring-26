@@ -67,6 +67,11 @@ def init_auth_db():
             expires_at  TEXT    NOT NULL,
             used        INTEGER NOT NULL DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS user_nodes (
+            username   TEXT NOT NULL COLLATE NOCASE,
+            node_id    INTEGER NOT NULL,
+            PRIMARY KEY (username, node_id)
+        );                  
         """)
 
 
@@ -338,3 +343,55 @@ if __name__ == "__main__":
     init_auth_db()
     remove_user("admin")
     create_user("admin", "", "", "admin@123", is_admin=1)
+
+def assign_node(username: str, node_id: int) -> bool:
+    try:
+        with _conn() as con:
+            con.execute(
+                "INSERT OR IGNORE INTO user_nodes (username, node_id) VALUES (?, ?)",
+                (username, node_id),
+            )
+        return True
+    except Exception as exc:
+        print(f"[auth_database] assign_node error: {exc}")
+        return False
+
+def revoke_node(username: str, node_id: int) -> bool:
+    with _conn() as con:
+        cur = con.execute(
+            "DELETE FROM user_nodes WHERE username = ? COLLATE NOCASE AND node_id = ?",
+            (username, node_id),
+        )
+        return cur.rowcount > 0
+
+def get_user_nodes(username: str) -> list[int]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT node_id FROM user_nodes WHERE username = ? COLLATE NOCASE",
+            (username,),
+        ).fetchall()
+    return [r[0] for r in rows]
+
+def get_all_users_with_nodes() -> list[dict]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT u.username, u.is_admin, u.fullname_enc FROM auth_users u ORDER BY u.username"
+        ).fetchall()
+    result = []
+    for uname, is_admin, fn_enc in rows:
+        try:
+            fullname = decrypt_field(fn_enc)
+        except Exception:
+            fullname = ""
+        nodes = get_user_nodes(uname)
+        result.append({"username": uname, "is_admin": is_admin,
+                        "fullname": fullname, "nodes": nodes})
+    return result
+
+def update_fullname(username: str, new_fullname: str) -> bool:
+    with _conn() as con:
+        cur = con.execute(
+            "UPDATE auth_users SET fullname_enc = ? WHERE username = ? COLLATE NOCASE",
+            (encrypt_field(new_fullname), username),
+        )
+        return cur.rowcount > 0    

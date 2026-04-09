@@ -433,7 +433,7 @@ class _LoginPage(QWidget):
             return
 
         import database
-        viewable = database.get_nodes() if result["is_admin"] else []
+        viewable = database.get_nodes() if result["is_admin"] else adb.get_user_nodes(result["username"])
 
         user = User(
             username=result["username"],
