@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLab
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings
 import folium
+from folium.plugins import MarkerCluster
 import database
 from login import User
 
@@ -104,24 +105,68 @@ class MapDisplay(QWidget):
         self.nodes = self.user.viewable_nodes
         print(f"Updating map with nodes: {self.nodes}")
 
+        #Cluster color function: if any child marker has SOS status, cluster is orange; otherwise blue
+
+        icon_create_function = """
+        function(cluster) {
+            var children = cluster.getAllChildMarkers();
+            var hasSOS = children.some(function(marker) {
+                return marker.options.title === 'SOS';
+            });
+
+            var iconUrl = hasSOS ? 'images/red_icon.png' : 'images/green_icon.png';
+            var count = cluster.getChildCount();
+
+            return L.divIcon({
+                html: '<div style="position: relative; width: 50px; height: 50px;"> \
+                        <img src="' + iconUrl + '" style="width: 50px; height: 50px;"/> \
+                        <span style="position: absolute; \
+                                        top: -5px; right: -5px; \
+                                        background: #4a4a4a; \
+                                        color: white; \
+                                        border-radius: 50%; \
+                                        width: 20px; height: 20px; \
+                                        display: flex; \
+                                        align-items: center; justify-content: center; \
+                                        font-size: 11px; \
+                                        font-weight: bold; \
+                                        border: 1px solid white;"> \
+                        ' + count + ' \
+                        </span> \
+                    </div>',
+                className: 'custom-cluster',
+                iconSize: L.point(50, 50),
+                iconAnchor: L.point(25, 50)
+            });
+        }
+        """
+
+        marker_cluster = MarkerCluster(
+            options={"maxClusterRadius": 1}, 
+            icon_create_function=icon_create_function
+            ).add_to(self.m)
+
         for node in self.nodes:
             try:
                 cur_gps = database.get_GPS(node)
                 icon_img = os.path.abspath("images/green_icon.png")
+                cluster_type = "Normal"
 
                 if database.get_status(node) == "SOS":
                     icon_img = os.path.abspath("images/red_icon.png")
+                    cluster_type = "SOS"
                     folium.Circle(
                         radius=100,
                         location=cur_gps,
-                        color='crimson',
+                        color='grey',
                         fill=True
                     ).add_to(self.m)
                 folium.Marker(
                     location=cur_gps,
                     popup=f"Node {node}: {cur_gps}",
-                    icon=folium.CustomIcon(icon_img,icon_size=(50,50))
-                ).add_to(self.m)
+                    icon=folium.CustomIcon(icon_img,icon_size=(50,50)),
+                    title = cluster_type
+                ).add_to(marker_cluster)
 
             except ValueError:
                 print(f"***ERROR: Node {node} does not exist***")
