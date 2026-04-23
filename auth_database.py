@@ -199,6 +199,13 @@ def find_username_by_email(email: str) -> str | None:
             continue
     return None
 
+def update_fullname(username: str, fullname: str) -> bool:
+    with _conn() as con:
+        cur = con.execute(
+            "UPDATE auth_users SET fullname_enc = ? WHERE username = ? COLLATE NOCASE",
+            (encrypt_field(fullname), username),
+        )
+        return cur.rowcount > 0
 
 def update_password(username: str, new_password: str) -> bool:
     with _conn() as con:

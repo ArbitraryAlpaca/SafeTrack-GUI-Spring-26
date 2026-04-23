@@ -1,28 +1,21 @@
-# ═══════════════════════════════════════════════════════
-# settings.py  –  SafeTrack Settings Page
-# ═══════════════════════════════════════════════════════
-
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
-    QFrame, QLineEdit, QScrollArea, QSizePolicy, QStackedWidget,
-    QMessageBox
+    QFrame, QLineEdit, QStackedWidget, QMessageBox, QDialog,
+    QScrollArea
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont
-
 import auth_database as adb
 from login import User
+import theme
 
 
-# ───────────────────────────────────────────────────────
-# SECTION BUTTON  (left-hand tab list)
-# ───────────────────────────────────────────────────────
 class _SectionBtn(QPushButton):
     def __init__(self, icon: str, label: str, parent=None):
         super().__init__(parent)
-        self._icon  = icon
+        self._icon = icon
         self._label = label
         self._active = False
+        self._theme_name = "dark"
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(42)
         self._refresh()
@@ -31,383 +24,578 @@ class _SectionBtn(QPushButton):
         self._active = active
         self._refresh()
 
+    def set_theme(self, theme_name: str):
+        self._theme_name = theme_name
+        self._refresh()
+
     def _refresh(self):
+        t = theme.get_theme(self._theme_name)
+
         if self._active:
-            self.setStyleSheet("""
-                QPushButton {
-                    background-color: #2563eb;
-                    border: none; border-radius: 8px;
-                    padding: 8px 14px; text-align: left;
-                    color: #ffffff;
-                    font-size: 13px; font-weight: 700;
-                }
+            self.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {t["nav_active_bg"]};
+                    border: none;
+                    border-radius: 8px;
+                    padding: 8px 14px;
+                    text-align: left;
+                    color: {t["nav_active_text"]};
+                    font-size: 13px;
+                    font-weight: 700;
+                }}
             """)
         else:
-            self.setStyleSheet("""
-                QPushButton {
+            self.setStyleSheet(f"""
+                QPushButton {{
                     background: transparent;
-                    border: none; border-radius: 8px;
-                    padding: 8px 14px; text-align: left;
-                    color: #64748b;
-                    font-size: 13px; font-weight: 500;
-                }
-                QPushButton:hover {
-                    background-color: rgba(255,255,255,0.04);
-                    color: #94a3b8;
-                }
+                    border: none;
+                    border-radius: 8px;
+                    padding: 8px 14px;
+                    text-align: left;
+                    color: {t["soft"]};
+                    font-size: 13px;
+                    font-weight: 500;
+                }}
+                QPushButton:hover {{
+                    background-color: {t["nav_hover"]};
+                    color: {t["text"]};
+                }}
             """)
+
         self.setText(f"  {self._icon}  {self._label}")
 
 
-# ───────────────────────────────────────────────────────
-# STYLED INPUT
-# ───────────────────────────────────────────────────────
-def _make_input(placeholder: str = "", password: bool = False) -> QLineEdit:
-    w = QLineEdit()
-    w.setPlaceholderText(placeholder)
-    if password:
-        w.setEchoMode(QLineEdit.EchoMode.Password)
-    w.setFixedHeight(44)
-    w.setStyleSheet("""
-        QLineEdit {
-            background-color: #0d1526;
-            border: 1px solid #1e2d44;
-            border-radius: 8px;
-            padding: 0 12px;
-            color: #cbd5e1;
-            font-size: 13px;
-        }
-        QLineEdit:focus {
-            border-color: #2563eb;
-            background-color: #0f1a30;
-        }
-        QLineEdit:hover {
-            border-color: #2a3a52;
-        }
-    """)
-    return w
-
-
-def _field_label(text: str) -> QLabel:
+def _field_label(text: str, theme_name: str) -> QLabel:
     lbl = QLabel(text)
-    lbl.setStyleSheet("color: #94a3b8; font-size: 13px; font-weight: 600;")
+    t = theme.get_theme(theme_name)
+    lbl.setStyleSheet(
+        f"color: {t['muted']}; font-size: 13px; font-weight: 600;"
+    )
     return lbl
 
 
-# ───────────────────────────────────────────────────────
-# CONTENT PANELS
-# ───────────────────────────────────────────────────────
+def _make_input(placeholder: str = "", read_only: bool = False) -> QLineEdit:
+    w = QLineEdit()
+    w.setPlaceholderText(placeholder)
+    w.setFixedHeight(44)
+    w.setReadOnly(read_only)
+    return w
 
-class _AccountPanel(QWidget):
-    def __init__(self, user: User, parent=None):
+
+def _apply_input_style(widget: QLineEdit, theme_name: str, read_only: bool = False):
+    t = theme.get_theme(theme_name)
+
+    if read_only:
+        widget.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {t["readonly_bg"]};
+                border: 1px solid {t["input_border"]};
+                border-radius: 8px;
+                padding: 0 12px;
+                color: {t["muted"]};
+                font-size: 13px;
+            }}
+        """)
+    else:
+        widget.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {t["input_bg"]};
+                border: 1px solid {t["input_border"]};
+                border-radius: 8px;
+                padding: 0 12px;
+                color: {t["text"]};
+                font-size: 13px;
+            }}
+            QLineEdit:focus {{
+                border-color: {t["input_focus"]};
+            }}
+        """)
+
+
+class _ChangePasswordDialog(QDialog):
+    def __init__(self, user: User, theme_name: str, parent=None):
         super().__init__(parent)
         self.user = user
+        self.theme_name = theme_name
+        self.setWindowTitle("Change Password")
+        self.setFixedSize(420, 300)
+
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(24, 24, 24, 24)
+        self.layout.setSpacing(12)
+
+        self.title = QLabel("Change Password")
+        self.layout.addWidget(self.title)
+
+        self.current_pw_lbl = QLabel("Current Password")
+        self.current_pw = _make_input("Enter current password")
+        self.current_pw.setEchoMode(QLineEdit.EchoMode.Password)
+
+        self.new_pw_lbl = QLabel("New Password")
+        self.new_pw = _make_input("Enter new password")
+        self.new_pw.setEchoMode(QLineEdit.EchoMode.Password)
+
+        self.confirm_pw_lbl = QLabel("Confirm New Password")
+        self.confirm_pw = _make_input("Confirm new password")
+        self.confirm_pw.setEchoMode(QLineEdit.EchoMode.Password)
+
+        for lbl, field in [
+            (self.current_pw_lbl, self.current_pw),
+            (self.new_pw_lbl, self.new_pw),
+            (self.confirm_pw_lbl, self.confirm_pw),
+        ]:
+            self.layout.addWidget(lbl)
+            self.layout.addWidget(field)
+
+        btn_row = QHBoxLayout()
+        self.save_btn = QPushButton("Save")
+        self.cancel_btn = QPushButton("Cancel")
+        btn_row.addWidget(self.save_btn)
+        btn_row.addWidget(self.cancel_btn)
+        btn_row.addStretch()
+        self.layout.addLayout(btn_row)
+
+        self.save_btn.clicked.connect(self._save)
+        self.cancel_btn.clicked.connect(self.reject)
+
+        self.apply_theme(theme_name)
+
+    def apply_theme(self, theme_name: str):
+        self.theme_name = theme_name
+        t = theme.get_theme(theme_name)
+
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {t["panel_bg"]};
+                color: {t["text"]};
+            }}
+        """)
+
+        self.title.setStyleSheet(
+            f"font-size: 16px; font-weight: 700; color: {t['text']};"
+        )
+
+        for lbl in [self.current_pw_lbl, self.new_pw_lbl, self.confirm_pw_lbl]:
+            lbl.setStyleSheet(f"color: {t['muted']}; font-size: 13px; font-weight: 600;")
+
+        _apply_input_style(self.current_pw, theme_name, read_only=False)
+        _apply_input_style(self.new_pw, theme_name, read_only=False)
+        _apply_input_style(self.confirm_pw, theme_name, read_only=False)
+
+        self.save_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {t["accent"]};
+                color: white;
+                border: none;
+                border-radius: 7px;
+                padding: 10px 18px;
+                font-size: 13px;
+                font-weight: 700;
+            }}
+            QPushButton:hover {{
+                background: {t["accent_hover"]};
+            }}
+        """)
+
+        self.cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {t["soft"]};
+                border: 1px solid {t["border"]};
+                border-radius: 7px;
+                padding: 10px 18px;
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                color: {t["text"]};
+            }}
+        """)
+
+    def _save(self):
+        current_pw = self.current_pw.text()
+        new_pw = self.new_pw.text()
+        confirm_pw = self.confirm_pw.text()
+
+        if not current_pw or not new_pw or not confirm_pw:
+            QMessageBox.warning(self, "Missing Fields", "Please fill in all password fields.")
+            return
+
+        if new_pw != confirm_pw:
+            QMessageBox.warning(self, "Mismatch", "New passwords do not match.")
+            return
+
+        auth = adb.authenticate_user(self.user.username, current_pw)
+        if auth is None:
+            QMessageBox.warning(self, "Incorrect Password", "Your current password is incorrect.")
+            return
+
+        if adb.update_password(self.user.username, new_pw):
+            QMessageBox.information(self, "Password Updated", "Your password was changed successfully.")
+            self.accept()
+        else:
+            QMessageBox.warning(self, "Update Failed", "Could not update the password.")
+
+
+class _AccountPanel(QWidget):
+    def __init__(self, user: User, theme_name: str, parent=None):
+        super().__init__(parent)
+        self.user = user
+        self.theme_name = theme_name
         self.setStyleSheet("background: transparent;")
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        # ── scroll area so it works at any window height ──
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setStyleSheet("background: transparent; border: none;")
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("""
+            QScrollArea {
+                background: transparent;
+                border: none;
+            }
+        """)
 
         inner = QWidget()
         inner.setStyleSheet("background: transparent;")
-        form = QVBoxLayout(inner)
-        form.setContentsMargins(0, 0, 16, 16)
-        form.setSpacing(18)
+        self.form = QVBoxLayout(inner)
+        self.form.setContentsMargins(0, 0, 8, 8)
+        self.form.setSpacing(16)
 
-        # Section title
-        title = QLabel("Account Settings")
-        title.setStyleSheet("color: #f1f5f9; font-size: 17px; font-weight: 700;")
-        form.addWidget(title)
+        self.title = QLabel("Account Settings")
+        self.form.addWidget(self.title)
 
-        # Fields
-        self.full_name  = _make_input("Enter your full name")
-        self.username   = _make_input("Enter username")
-        self.email      = _make_input("Enter email address")
-        self.phone      = _make_input("Enter phone number")
+        self.full_name_lbl = _field_label("Full Name", theme_name)
+        self.full_name = _make_input("Enter your full name")
+        self.full_name.setText(user.fullname or "")
 
-        # Pre-fill from user object
-        if user.fullname:
-            self.full_name.setText(user.fullname)
+        self.username_lbl = _field_label("Username", theme_name)
+        self.username = _make_input("", read_only=True)
         self.username.setText(user.username)
 
-        for label_text, widget in [
-            ("Full Name",     self.full_name),
-            ("Username",      self.username),
-            ("Email",         self.email),
-            ("Phone Number",  self.phone),
-        ]:
-            lbl = _field_label(label_text)
-            form.addWidget(lbl)
-            form.addWidget(widget)
+        self.email_lbl = _field_label("Email", theme_name)
+        self.email = _make_input("", read_only=True)
+        self.email.setText(user.email if user.email else "Not set")
 
-        # ── Action buttons ──
+        self.phone_lbl = _field_label("Phone Number", theme_name)
+        self.phone = _make_input("", read_only=True)
+        self.phone.setText("Future field")
+
+        for lbl, field in [
+            (self.full_name_lbl, self.full_name),
+            (self.username_lbl, self.username),
+            (self.email_lbl, self.email),
+            (self.phone_lbl, self.phone),
+        ]:
+            self.form.addWidget(lbl)
+            self.form.addWidget(field)
+
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
 
         self.change_pw_btn = QPushButton("Change Password")
-        self.change_pw_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.change_pw_btn.setFixedHeight(40)
-        self.change_pw_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #ef4444;
-                color: #ffffff; border: none;
-                border-radius: 8px;
-                font-size: 13px; font-weight: 700;
-                padding: 0 20px;
-            }
-            QPushButton:hover { background-color: #dc2626; }
-            QPushButton:pressed { background-color: #b91c1c; }
-        """)
-
-        self.delete_btn = QPushButton("Delete Account")
-        self.delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.delete_btn.setFixedHeight(40)
-        self.delete_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                color: #64748b;
-                border: 1px solid #334155;
-                border-radius: 8px;
-                font-size: 13px; font-weight: 600;
-                padding: 0 20px;
-            }
-            QPushButton:hover {
-                border-color: #ef4444;
-                color: #ef4444;
-            }
-        """)
-
         btn_row.addWidget(self.change_pw_btn)
-        btn_row.addWidget(self.delete_btn)
+
         btn_row.addStretch()
-        form.addLayout(btn_row)
-        form.addStretch()
+        self.form.addLayout(btn_row)
+        self.form.addStretch()
 
         scroll.setWidget(inner)
-        layout.addWidget(scroll)
+        root.addWidget(scroll)
 
-        # Connections
-        self.change_pw_btn.clicked.connect(self._on_change_password)
-        self.delete_btn.clicked.connect(self._on_delete_account)
+        self.change_pw_btn.clicked.connect(self._change_password)
+        self.apply_theme(theme_name)
 
-    def _on_change_password(self):
-        dlg = _ChangePasswordDialog(self.user, self)
+    def _change_password(self):
+        dlg = _ChangePasswordDialog(self.user, self.theme_name, self)
         dlg.exec()
 
-    def _on_delete_account(self):
-        resp = QMessageBox.warning(
-            self, "Delete Account",
-            "Are you sure you want to delete your account?\nThis action cannot be undone.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-        )
-        if resp == QMessageBox.StandardButton.Yes:
-            QMessageBox.information(self, "Account Deleted",
-                                    "Your account has been deleted.")
+    def current_fullname(self) -> str:
+        return self.full_name.text().strip()
 
+    def apply_theme(self, theme_name: str):
+        self.theme_name = theme_name
+        t = theme.get_theme(theme_name)
 
-class _PlaceholderPanel(QWidget):
-    def __init__(self, icon: str, title: str, parent=None):
-        super().__init__(parent)
         self.setStyleSheet("background: transparent;")
-        lay = QVBoxLayout(self)
-        lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title.setStyleSheet(
+            f"color: {t['text']}; font-size: 18px; font-weight: 700;"
+        )
 
-        ico = QLabel(icon)
-        ico.setStyleSheet("font-size: 44px;")
-        ico.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(ico)
+        for lbl in [self.full_name_lbl, self.username_lbl, self.email_lbl, self.phone_lbl]:
+            lbl.setStyleSheet(f"color: {t['muted']}; font-size: 13px; font-weight: 600;")
 
-        t = QLabel(title)
-        t.setStyleSheet("font-size: 20px; font-weight: 600; color: #2a3a52;")
-        t.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(t)
+        _apply_input_style(self.full_name, theme_name, read_only=False)
+        _apply_input_style(self.username, theme_name, read_only=True)
+        _apply_input_style(self.email, theme_name, read_only=True)
+        _apply_input_style(self.phone, theme_name, read_only=True)
 
-        sub = QLabel("Coming soon")
-        sub.setStyleSheet("font-size: 13px; color: #1e2d44;")
-        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(sub)
-
-
-# ───────────────────────────────────────────────────────
-# CHANGE PASSWORD DIALOG
-# ───────────────────────────────────────────────────────
-class _ChangePasswordDialog(QWidget):
-    def __init__(self, user: User, parent=None):
-        super().__init__(parent, Qt.WindowType.Dialog)
-        self.user = user
-        self.setWindowTitle("Change Password")
-        self.setFixedSize(400, 280)
-        self.setStyleSheet("""
-            QWidget {
-                background-color: #0f172b;
-                color: #f1f5f9;
-            }
+        self.change_pw_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {t["danger"]};
+                color: #ffffff;
+                border: none;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 700;
+                padding: 10px 18px;
+            }}
+            QPushButton:hover {{
+                background-color: {t["danger_hover"]};
+            }}
         """)
 
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(24, 24, 24, 24)
-        lay.setSpacing(14)
 
-        title = QLabel("Change Password")
-        title.setStyleSheet("font-size: 16px; font-weight: 700; color: #f1f5f9;")
-        lay.addWidget(title)
+class _PreferencesPanel(QWidget):
+    theme_selected = pyqtSignal(str)
 
-        self.current_pw = _make_input("Current password", password=True)
-        self.new_pw     = _make_input("New password",     password=True)
-        self.confirm_pw = _make_input("Confirm new password", password=True)
+    def __init__(self, theme_name: str, parent=None):
+        super().__init__(parent)
+        self.theme_name = theme_name
+        self.setStyleSheet("background: transparent;")
 
-        for lbl, w in [("Current Password", self.current_pw),
-                       ("New Password",     self.new_pw),
-                       ("Confirm Password", self.confirm_pw)]:
-            lay.addWidget(_field_label(lbl))
-            lay.addWidget(w)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
 
-        btn_row = QHBoxLayout()
-        save_btn = QPushButton("Save")
-        save_btn.setFixedHeight(38)
-        save_btn.setStyleSheet("""
-            QPushButton {
-                background: #2563eb; color: #fff;
-                border: none; border-radius: 7px;
-                font-size: 13px; font-weight: 700; padding: 0 20px;
-            }
-            QPushButton:hover { background: #1d4ed8; }
-        """)
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setFixedHeight(38)
-        cancel_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent; color: #64748b;
-                border: 1px solid #334155; border-radius: 7px;
-                font-size: 13px; font-weight: 600; padding: 0 20px;
-            }
-            QPushButton:hover { color: #94a3b8; border-color: #475569; }
-        """)
-        save_btn.clicked.connect(self._save)
-        cancel_btn.clicked.connect(self.close)
-        btn_row.addWidget(save_btn)
-        btn_row.addWidget(cancel_btn)
-        btn_row.addStretch()
-        lay.addLayout(btn_row)
+        self.title = QLabel("App Preferences")
+        self.desc = QLabel(
+            "Choose the visual mode for the settings page. "
+            "This preference is saved locally and will be reused the next time the app opens."
+        )
+        self.desc.setWordWrap(True)
 
-    def exec(self):
-        self.show()
+        self.mode_label = QLabel("Appearance")
 
-    def _save(self):
-        if self.new_pw.text() != self.confirm_pw.text():
-            QMessageBox.warning(self, "Mismatch", "New passwords do not match.")
-            return
-        if not self.new_pw.text():
-            QMessageBox.warning(self, "Empty", "New password cannot be empty.")
-            return
-        QMessageBox.information(self, "Password Changed",
-                                "Your password has been updated successfully.")
-        self.close()
+        self.btn_row = QHBoxLayout()
+        self.btn_row.setSpacing(10)
+
+        self.light_btn = QPushButton("Light Mode")
+        self.dark_btn = QPushButton("Dark Mode")
+
+        for btn, name in [(self.light_btn, "light"), (self.dark_btn, "dark")]:
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setFixedHeight(42)
+            btn.clicked.connect(lambda _, n=name: self.theme_selected.emit(n))
+            self.btn_row.addWidget(btn)
+
+        self.status = QLabel("")
+        self.status.setWordWrap(True)
+
+        layout.addWidget(self.title)
+        layout.addWidget(self.desc)
+        layout.addSpacing(8)
+        layout.addWidget(self.mode_label)
+        layout.addLayout(self.btn_row)
+        layout.addSpacing(8)
+        layout.addWidget(self.status)
+        layout.addStretch()
+
+        self.apply_theme(theme_name)
+
+    def apply_theme(self, theme_name: str):
+        self.theme_name = theme_name
+        t = theme.get_theme(theme_name)
+
+        self.title.setStyleSheet(
+            f"color: {t['text']}; font-size: 18px; font-weight: 700;"
+        )
+        self.desc.setStyleSheet(
+            f"color: {t['muted']}; font-size: 13px; line-height: 1.5;"
+        )
+        self.mode_label.setStyleSheet(
+            f"color: {t['muted']}; font-size: 13px; font-weight: 600;"
+        )
+        self.status.setStyleSheet(
+            f"color: {t['soft']}; font-size: 12px;"
+        )
+
+        def style_mode_btn(btn: QPushButton, active: bool):
+            if active:
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {t["accent"]};
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        font-size: 13px;
+                        font-weight: 700;
+                        padding: 10px 16px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: {t["accent_hover"]};
+                    }}
+                """)
+            else:
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: {t["panel_alt"]};
+                        color: {t["text"]};
+                        border: 1px solid {t["border"]};
+                        border-radius: 8px;
+                        font-size: 13px;
+                        font-weight: 600;
+                        padding: 10px 16px;
+                    }}
+                    QPushButton:hover {{
+                        border-color: {t["accent"]};
+                    }}
+                """)
+
+        style_mode_btn(self.light_btn, theme_name == "light")
+        style_mode_btn(self.dark_btn, theme_name == "dark")
+        self.status.setText(f"Current mode: {theme_name.title()}")
 
 
-# ───────────────────────────────────────────────────────
-# MAIN SETTINGS PAGE
-# ───────────────────────────────────────────────────────
+class _AboutPanel(QWidget):
+    def __init__(self, theme_name: str, parent=None):
+        super().__init__(parent)
+        self.theme_name = theme_name
+        self.setStyleSheet("background: transparent;")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(14)
+
+        self.title = QLabel("About & Help")
+        self.subtitle = QLabel(
+            "Support and a brief overview of the SafeTrack project."
+        )
+        self.subtitle.setWordWrap(True)
+
+        self.support_card = QFrame()
+        support_layout = QVBoxLayout(self.support_card)
+        support_layout.setContentsMargins(16, 16, 16, 16)
+        support_layout.setSpacing(8)
+
+        self.support_title = QLabel("Support")
+        self.support_email = QLabel("epics@asu.edu")
+        self.meeting_time = QLabel("Meeting Time: Wednesday 7:00–8:15 pm")
+
+        support_layout.addWidget(self.support_title)
+        support_layout.addWidget(self.support_email)
+        support_layout.addWidget(self.meeting_time)
+
+        self.about_card = QFrame()
+        about_layout = QVBoxLayout(self.about_card)
+        about_layout.setContentsMargins(16, 16, 16, 16)
+        about_layout.setSpacing(8)
+
+        self.about_title = QLabel("How SafeTrack Works")
+        self.about_body = QLabel(
+            "SafeTrack is designed to help vulnerable people stay connected to their "
+            "families and communities while traveling to essential resources. The system "
+            "uses a DIY cellular-style mesh built from nodes that communicate over LoRa "
+            "radio frequencies. By passing location data across nearby nodes, SafeTrack "
+            "can share GPS location, alert loved ones when movement appears suspicious, "
+            "and support emergency response workflows."
+        )
+        self.about_body.setWordWrap(True)
+
+        about_layout.addWidget(self.about_title)
+        about_layout.addWidget(self.about_body)
+
+        layout.addWidget(self.title)
+        layout.addWidget(self.subtitle)
+        layout.addWidget(self.support_card)
+        layout.addWidget(self.about_card)
+        layout.addStretch()
+
+        self.apply_theme(theme_name)
+
+    def apply_theme(self, theme_name: str):
+        self.theme_name = theme_name
+        t = theme.get_theme(theme_name)
+
+        self.title.setStyleSheet(
+            f"color: {t['text']}; font-size: 18px; font-weight: 700;"
+        )
+        self.subtitle.setStyleSheet(
+            f"color: {t['muted']}; font-size: 13px;"
+        )
+
+        for card in [self.support_card, self.about_card]:
+            card.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {t["panel_alt"]};
+                    border: 1px solid {t["card_border"]};
+                    border-radius: 12px;
+                }}
+            """)
+
+        self.support_title.setStyleSheet(
+            f"color: {t['text']}; font-size: 15px; font-weight: 700;"
+        )
+        self.support_email.setStyleSheet(
+            f"color: {t['accent']}; font-size: 13px; font-weight: 600;"
+        )
+        self.meeting_time.setStyleSheet(
+            f"color: {t['muted']}; font-size: 13px;"
+        )
+
+        self.about_title.setStyleSheet(
+            f"color: {t['text']}; font-size: 15px; font-weight: 700;"
+        )
+        self.about_body.setStyleSheet(
+            f"color: {t['muted']}; font-size: 13px; line-height: 1.5;"
+        )
+
+
 class SettingsPage(QWidget):
-    """Full settings page with left tab list and right content panel."""
-
-    back_requested = pyqtSignal()   # emitted when user clicks ← Back
+    back_requested = pyqtSignal()
+    theme_changed = pyqtSignal(str)
 
     _SECTIONS = [
         ("👤", "Account"),
-        ("🔔", "Notifications"),
-        ("🔒", "Privacy & Security"),
-        ("📡", "Device & Nodes"),
-        ("⚙️", "App Preferences"),
-        ("📞", "Emergency Contacts"),
+        ("🎨", "App Preferences"),
         ("ℹ️", "About & Help"),
     ]
 
     def __init__(self, user: User, parent=None):
         super().__init__(parent)
         self.user = user
-        self.setStyleSheet("background: #060a13;")
+        self.theme_name = theme.load_theme_name()
+        self.setObjectName("settingsRoot")
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 20, 24, 20)
         root.setSpacing(20)
 
-        # ── Top bar ──
         top = QHBoxLayout()
         top.setSpacing(16)
 
-        back_btn = QPushButton("← Back")
-        back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        back_btn.setFixedHeight(34)
-        back_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                color: #94a3b8;
-                border: 1px solid #334155;
-                border-radius: 7px;
-                font-size: 13px; font-weight: 600;
-                padding: 0 14px;
-            }
-            QPushButton:hover {
-                background-color: rgba(255,255,255,0.04);
-                color: #cbd5e1;
-            }
-        """)
-        back_btn.clicked.connect(self.back_requested.emit)
+        self.back_btn = QPushButton("← Back")
+        self.back_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.back_btn.setFixedHeight(34)
+        self.back_btn.clicked.connect(self.back_requested.emit)
 
-        page_title = QLabel("Settings")
-        page_title.setStyleSheet(
-            "color: #f1f5f9; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;"
-        )
+        self.page_title = QLabel("Settings")
 
-        save_btn = QPushButton("💾  Save Changes")
-        save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        save_btn.setFixedHeight(36)
-        save_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #22c55e;
-                color: #ffffff; border: none;
-                border-radius: 8px;
-                font-size: 13px; font-weight: 700;
-                padding: 0 18px;
-            }
-            QPushButton:hover { background-color: #16a34a; }
-            QPushButton:pressed { background-color: #15803d; }
-        """)
-        save_btn.clicked.connect(self._save_changes)
+        self.save_btn = QPushButton("Save Changes")
+        self.save_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.save_btn.setFixedHeight(36)
+        self.save_btn.clicked.connect(self._save_changes)
 
-        top.addWidget(back_btn)
-        top.addWidget(page_title)
+        top.addWidget(self.back_btn)
+        top.addWidget(self.page_title)
         top.addStretch()
-        top.addWidget(save_btn)
+        top.addWidget(self.save_btn)
         root.addLayout(top)
 
-        # ── Body (left nav + right content) ──
         body = QHBoxLayout()
         body.setSpacing(16)
 
-        # Left nav panel
-        nav_frame = QFrame()
-        nav_frame.setFixedWidth(220)
-        nav_frame.setStyleSheet("""
-            QFrame {
-                background-color: #0f172b;
-                border: 1px solid #1a2540;
-                border-radius: 12px;
-            }
-        """)
-        nav_lay = QVBoxLayout(nav_frame)
+        self.nav_frame = QFrame()
+        self.nav_frame.setObjectName("settingsNavFrame")
+        self.nav_frame.setFixedWidth(220)
+        nav_lay = QVBoxLayout(self.nav_frame)
         nav_lay.setContentsMargins(8, 10, 8, 10)
         nav_lay.setSpacing(2)
 
-        self._section_btns: dict[str, _SectionBtn] = {}
+        self._section_btns = {}
         for icon, label in self._SECTIONS:
             btn = _SectionBtn(icon, label)
             btn.clicked.connect(lambda _, lbl=label: self.show_section(lbl))
@@ -415,57 +603,143 @@ class SettingsPage(QWidget):
             self._section_btns[label] = btn
         nav_lay.addStretch()
 
-        # Right content panel
-        content_frame = QFrame()
-        content_frame.setStyleSheet("""
-            QFrame {
-                background-color: #0f172b;
-                border: 1px solid #1a2540;
-                border-radius: 12px;
-            }
-        """)
-        content_lay = QVBoxLayout(content_frame)
+        self.content_frame = QFrame()
+        self.content_frame.setObjectName("settingsContentFrame")
+        content_lay = QVBoxLayout(self.content_frame)
         content_lay.setContentsMargins(24, 20, 24, 20)
         content_lay.setSpacing(0)
 
         self._stack = QStackedWidget()
+        self._stack.setObjectName("settingsStack")
         self._stack.setStyleSheet("background: transparent; border: none;")
 
-        self._panels: dict[str, QWidget] = {}
-        for icon, label in self._SECTIONS:
-            if label == "Account":
-                panel = _AccountPanel(user)
-            else:
-                panel = _PlaceholderPanel(icon, label)
-            self._stack.addWidget(panel)
-            self._panels[label] = panel
+        self.account_panel = _AccountPanel(user, self.theme_name)
+        self.preferences_panel = _PreferencesPanel(self.theme_name)
+        self.about_panel = _AboutPanel(self.theme_name)
+
+        self.preferences_panel.theme_selected.connect(self._on_theme_selected)
+
+        self._panels = {
+            "Account": self.account_panel,
+            "App Preferences": self.preferences_panel,
+            "About & Help": self.about_panel,
+        }
+
+        for label in ["Account", "App Preferences", "About & Help"]:
+            self._stack.addWidget(self._panels[label])
 
         content_lay.addWidget(self._stack)
 
-        body.addWidget(nav_frame)
-        body.addWidget(content_frame, stretch=1)
+        body.addWidget(self.nav_frame)
+        body.addWidget(self.content_frame, stretch=1)
         root.addLayout(body, stretch=1)
 
-        # Default to Account tab
         self.show_section("Account")
+        self.apply_theme()
 
     def show_section(self, label: str):
-        """Switch to a named section tab."""
         for lbl, btn in self._section_btns.items():
             btn.set_active(lbl == label)
+
         panel = self._panels.get(label)
         if panel:
             self._stack.setCurrentWidget(panel)
 
+        self.save_btn.setVisible(label == "Account")
+
+    def _on_theme_selected(self, theme_name: str):
+        self.theme_name = theme_name
+        theme.save_theme_name(theme_name)
+        self.apply_theme()
+        self.theme_changed.emit(theme_name)
+
     def _save_changes(self):
-        # Pull values from account panel and persist what we can
-        panel = self._panels.get("Account")
-        if isinstance(panel, _AccountPanel):
-            fullname = panel.full_name.text().strip()
-            # Persist fullname if auth_database supports it
-            try:
-                adb.update_fullname(self.user.username, fullname)
-                self.user.fullname = fullname
-            except Exception:
-                pass
-        QMessageBox.information(self, "Saved", "Your settings have been saved.")
+        fullname = self.account_panel.current_fullname()
+
+        if not fullname:
+            QMessageBox.warning(self, "Missing Name", "Full name cannot be empty.")
+            return
+
+        if fullname == (self.user.fullname or ""):
+            QMessageBox.information(self, "No Changes", "Nothing to save.")
+            return
+
+        ok = adb.update_fullname(self.user.username, fullname)
+        if ok:
+            self.user.fullname = fullname
+            QMessageBox.information(self, "Saved", "Your profile changes were saved.")
+        else:
+            QMessageBox.warning(self, "Save Failed", "Could not save your full name.")
+
+    def apply_theme(self):
+        t = theme.get_theme(self.theme_name)
+
+        self.setStyleSheet(f"""
+            QWidget#settingsRoot {{
+                background-color: {t["page_bg"]};
+            }}
+
+            QFrame#settingsNavFrame {{
+                background-color: {t["panel_bg"]};
+                border: 1px solid {t["border"]};
+                border-radius: 12px;
+            }}
+
+            QFrame#settingsContentFrame {{
+                background-color: {t["panel_bg"]};
+                border: 1px solid {t["border"]};
+                border-radius: 12px;
+            }}
+
+            QStackedWidget#settingsStack {{
+                background: transparent;
+                border: none;
+            }}
+        """)
+
+        self.page_title.setStyleSheet(
+            f"color: {t['text']}; font-size: 24px; font-weight: 800;"
+        )
+
+        self.back_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                color: {t["muted"]};
+                border: 1px solid {t["border"]};
+                border-radius: 7px;
+                font-size: 13px;
+                font-weight: 600;
+                padding: 0 14px;
+            }}
+            QPushButton:hover {{
+                color: {t["text"]};
+                background-color: {t["nav_hover"]};
+            }}
+        """)
+
+        self.save_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {t["success"]};
+                color: #ffffff;
+                border: none;
+                border-radius: 8px;
+                font-size: 13px;
+                font-weight: 700;
+                padding: 0 18px;
+            }}
+            QPushButton:hover {{
+                background-color: {t["success_hover"]};
+            }}
+        """)
+
+        for btn in self._section_btns.values():
+            btn.set_theme(self.theme_name)
+
+        self.account_panel.apply_theme(self.theme_name)
+        self.preferences_panel.apply_theme(self.theme_name)
+        self.about_panel.apply_theme(self.theme_name)
+
+        self.update()
+        self.nav_frame.update()
+        self.content_frame.update()
+        self._stack.update()

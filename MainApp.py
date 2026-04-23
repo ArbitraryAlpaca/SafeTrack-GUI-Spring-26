@@ -22,6 +22,7 @@ from serial_monitor import Monitor
 from simulating_nodes import Simulate  # for debugging only
 from settings import SettingsPage
 from history_log import HistoryLogPage
+import theme
 
 
 # ═══════════════════════════════════════════════════════
@@ -52,9 +53,7 @@ class AvatarWidget(QWidget):
 
 
 class BadgeWidget(QWidget):
-    """Small circular badge that draws a filled circle and centered text.
-    This ensures a pixel-perfect circle on all DPI settings.
-    """
+    """Small circular badge that draws a filled circle and centered text."""
     def __init__(self, parent=None):
         super().__init__(parent)
         self._count_text = ""
@@ -75,7 +74,7 @@ class BadgeWidget(QWidget):
                 text = str(count)
             else:
                 w, h = 30, 18
-                text = '99+'
+                text = "99+"
             self._count_text = text
             self.setFixedSize(w, h)
             self.setVisible(True)
@@ -90,11 +89,9 @@ class BadgeWidget(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = self.rect()
-        # draw circle/rounded background
         p.setBrush(self._bg)
         p.setPen(Qt.PenStyle.NoPen)
         p.drawEllipse(r)
-        # draw text
         p.setPen(self._fg)
         p.setFont(self._font)
         p.drawText(r, Qt.AlignmentFlag.AlignCenter, self._count_text)
@@ -112,7 +109,6 @@ class SidebarButton(QPushButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(42)
         self._update_style()
-        # badge widget for counts (hidden by default)
         self._badge = BadgeWidget(self)
         self._badge.setVisible(False)
 
@@ -156,7 +152,6 @@ class SidebarButton(QPushButton):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        # position badge near top-right inside the button
         try:
             x = self.width() - (self._badge.width() + 12)
             y = (self.height() - self._badge.height()) // 2
@@ -166,9 +161,7 @@ class SidebarButton(QPushButton):
 
     def set_badge(self, count: int):
         try:
-            # delegate sizing/drawing to BadgeWidget
             self._badge.set_count(count if isinstance(count, int) else 0)
-            # reposition after resize
             try:
                 x = self.width() - (self._badge.width() + 12)
                 y = (self.height() - self._badge.height()) // 2
@@ -179,19 +172,13 @@ class SidebarButton(QPushButton):
             pass
 
 
-
 # ═══════════════════════════════════════════════════════
-# FILTERED NOTIFICATIONS PAGE
-# Wraps NotificationsPage and adds category filter tabs on top
+# FILTERED PAGE
 # ═══════════════════════════════════════════════════════
 
 class FilteredPage(QWidget):
-    """Adds All / SOS / Alert / Info / System filter tabs above the
-    existing NotificationsPage widget from notification.py."""
-
     TABS = ["All", "SOS", "Alert", "Info", "System"]
 
-    # colour per category: (active-bg hex, active-text hex, border hex)
     _TAB_COLORS = {
         "All":    ("#2563eb", "#ffffff", "#2563eb"),
         "SOS":    ("#3b0000", "#ef4444", "#ef4444"),
@@ -209,7 +196,6 @@ class FilteredPage(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # ── Tab bar ──
         tab_bar = QFrame()
         tab_bar.setFixedHeight(48)
         tab_bar.setStyleSheet("background: transparent; border: none;")
@@ -235,11 +221,9 @@ class FilteredPage(QWidget):
     def _set_tab(self, tab: str):
         self._active_tab = tab
         self._refresh_tab_styles()
-        # Drive the wrapped NotificationsPage via its `set_filter` API
         try:
             self.page.set_filter(tab)
         except Exception:
-            # gracefully ignore if method missing
             pass
 
     def _refresh_tab_styles(self):
@@ -276,7 +260,6 @@ class FilteredPage(QWidget):
                 """)
 
     def load(self):
-        """Delegates to the inner page and reapplies the current filter."""
         if isinstance(self.page, NotificationsPage):
             self.page.load_notifications()
         elif isinstance(self.page, HistoryLogPage):
@@ -302,19 +285,15 @@ class MainWindow(QMainWindow):
         monitor = Simulate(self.port, self.hrs)
         monitor.start()
 
-        self.setStyleSheet("QMainWindow { background-color: #060a13; }")
-
-        # ═════ CENTRAL WIDGET ═════
         central = QWidget()
+        self.central_bg = central
         self.setCentralWidget(central)
         root_layout = QHBoxLayout(central)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        # ═══════════════════════════════════════════
-        # SIDEBAR
-        # ═══════════════════════════════════════════
         sidebar = QFrame()
+        self.sidebar = sidebar
         sidebar.setFixedWidth(220)
         sidebar.setStyleSheet("""
             QFrame {
@@ -326,7 +305,6 @@ class MainWindow(QMainWindow):
         sidebar_layout.setContentsMargins(0, 0, 0, 0)
         sidebar_layout.setSpacing(0)
 
-        # ── Logo ──
         logo_frame = QFrame()
         logo_frame.setFixedHeight(64)
         logo_frame.setStyleSheet("background: transparent; border: none; border-bottom: 1px solid #141e30;")
@@ -342,7 +320,6 @@ class MainWindow(QMainWindow):
         logo_lay.addStretch()
         sidebar_layout.addWidget(logo_frame)
 
-        # ── Section label ──
         nav_label = QLabel("NAVIGATION")
         nav_label.setStyleSheet("""
             color: #3d4f68; font-size: 10px; font-weight: 700;
@@ -350,14 +327,13 @@ class MainWindow(QMainWindow):
         """)
         sidebar_layout.addWidget(nav_label)
 
-        # ── Nav buttons ──
         img = lambda name: os.path.join("images", name)
 
         self.sidebar_buttons_info = [
-            ("btnMap",           "Map",           img("map_icon.png")),
-            ("btnNotifications", "Notifications", img("notifications_icon.png")),
-            ("btnHistory",       "History && Logs",img("history_icon.png")),
-            ("btnSettings",      "Settings",      img("settings_icon.png")),
+            ("btnMap",           "Map",            img("map_icon.png")),
+            ("btnNotifications", "Notifications",  img("notifications_icon.png")),
+            ("btnHistory",       "History && Logs", img("history_icon.png")),
+            ("btnSettings",      "Settings",       img("settings_icon.png")),
         ]
         if user.is_admin:
             self.sidebar_buttons_info.append(("btnInvite", "Invite", img("invite_icon.png")))
@@ -374,13 +350,11 @@ class MainWindow(QMainWindow):
 
         sidebar_layout.addStretch()
 
-        # ── Divider ──
         div = QFrame()
         div.setFixedHeight(1)
         div.setStyleSheet("background-color: #141e30; border: none;")
         sidebar_layout.addWidget(div)
 
-        # ── Logout (separate, bottom) ──
         logout_btn = SidebarButton(f"  Logout", img("logout_icon.png"))
         logout_btn.setStyleSheet("""
             QPushButton {
@@ -398,7 +372,6 @@ class MainWindow(QMainWindow):
         self.sidebar_buttons["btnLogout"] = logout_btn
         sidebar_layout.addWidget(logout_btn)
 
-        # ── User profile (clickable → Settings > Account) ──
         user_frame = QFrame()
         user_frame.setFixedHeight(66)
         user_frame.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -438,21 +411,12 @@ class MainWindow(QMainWindow):
         user_lay.addStretch()
         sidebar_layout.addWidget(user_frame)
 
-        # Make the profile strip open Settings > Account when clicked
         user_frame.mousePressEvent = lambda e: self.on_sidebar_button("btnSettings")
 
         root_layout.addWidget(sidebar)
 
-        # ═══════════════════════════════════════════
-        # MAIN CONTENT AREA
-        # ═══════════════════════════════════════════
         main_area = QWidget()
-        main_area.setStyleSheet("""
-            QWidget {
-                background-color: #060a13;
-                color: #cfd8e8;
-            }
-        """)
+        self.main_area = main_area
         main_layout = QVBoxLayout(main_area)
         main_layout.setContentsMargins(20, 16, 20, 16)
         main_layout.setSpacing(0)
@@ -464,52 +428,46 @@ class MainWindow(QMainWindow):
 
         self.stacked_layout = QStackedLayout()
         content_frame = QFrame()
+        self.content_frame = content_frame
         content_frame.setStyleSheet("background: transparent; border: none;")
         content_frame.setLayout(self.stacked_layout)
         content_layout.addWidget(content_frame)
 
         self.blank_pages = {}
 
-        # Backend worker
         self.backend = BackendWorker(user)
         self.backend.notification_signal.connect(self.handle_backend_notification)
         self.backend.start()
 
-        # start a timer to refresh unread notification badge periodically
         self._notif_timer = QTimer(self)
         self._notif_timer.timeout.connect(self.update_notif_badge)
         self._notif_timer.start(2000)
 
-        # ── MAP PAGE ──
         self.alert_system = AlertSystem(self, user)
         self.alert_system.viewNodeRequested.connect(self.open_node_on_map)
 
         self.center = (33.42057834806449, -111.9322007773111)
         self.map_widget = MapDisplay(center_coord=self.center, user=user)
-        self.stacked_layout.addWidget(self.map_widget) # index 0
+        self.stacked_layout.addWidget(self.map_widget)
 
-        # ── NOTIFICATIONS PAGE (wrapped with category filter tabs) ──
         _inner_notif = NotificationsPage(user=user)
         self.notifications_page = FilteredPage(_inner_notif)
         self.notifications_page.load()
-        self.stacked_layout.addWidget(self.notifications_page)  # index 1
+        self.stacked_layout.addWidget(self.notifications_page)
 
-        # ── HISTORY PAGE (placeholder until history.py is integrated) ──
         _inner_histroy = HistoryLogPage(user=user)
         self.history_page = FilteredPage(_inner_histroy)
         self.history_page.load()
-        self.stacked_layout.addWidget(self.history_page)  # index 2
+        self.stacked_layout.addWidget(self.history_page)
 
-        # ── SETTINGS PAGE ──
         self.settings_page = SettingsPage(user=user)
         self.settings_page.back_requested.connect(
             lambda: self.on_sidebar_button("btnMap")
         )
-        self.stacked_layout.addWidget(self.settings_page)       # index 3
+        self.settings_page.theme_changed.connect(self._on_settings_theme_changed)
+        self.stacked_layout.addWidget(self.settings_page)
         self.blank_pages["btnSettings"] = self.settings_page
 
-        # ── BLANK PAGES (Invite, etc.) ──
-        # btnMap=0, btnNotifications=1, btnHistory=2, btnSettings=3 already set
         _skip = {"btnMap", "btnNotifications", "btnHistory", "btnSettings"}
         for obj_name, label, _ in self.sidebar_buttons_info:
             if obj_name in _skip:
@@ -538,10 +496,49 @@ class MainWindow(QMainWindow):
             self.blank_pages[obj_name] = page
 
         self.stacked_layout.setCurrentIndex(0)
+        self._sync_workspace_theme()
 
-    # ─────────────────────────────────────
-    # SIDEBAR NAVIGATION
-    # ─────────────────────────────────────
+    def _apply_workspace_theme(self, use_settings_theme: bool = False):
+        if use_settings_theme:
+            current_theme_name = getattr(self.settings_page, "theme_name", "dark")
+            t = theme.get_theme(current_theme_name)
+        else:
+            t = theme.get_theme("dark")
+
+        self.setStyleSheet(f"""
+            QMainWindow {{
+                background-color: {t["page_bg"]};
+            }}
+        """)
+
+        self.central_bg.setStyleSheet(f"""
+            QWidget {{
+                background-color: {t["page_bg"]};
+            }}
+        """)
+
+        self.main_area.setStyleSheet(f"""
+            QWidget {{
+                background-color: {t["page_bg"]};
+                color: {t["text"]};
+            }}
+        """)
+
+        self.content_frame.setStyleSheet("""
+            QFrame {
+                background: transparent;
+                border: none;
+            }
+        """)
+
+    def _sync_workspace_theme(self):
+        current_widget = self.stacked_layout.currentWidget()
+        use_settings_theme = current_widget == self.settings_page
+        self._apply_workspace_theme(use_settings_theme=use_settings_theme)
+
+    def _on_settings_theme_changed(self, theme_name: str):
+        if self.stacked_layout.currentWidget() == self.settings_page:
+            self._apply_workspace_theme(use_settings_theme=True)
 
     def _set_active(self, name: str):
         for key, btn in self.sidebar_buttons.items():
@@ -557,30 +554,39 @@ class MainWindow(QMainWindow):
                 self._set_active(name)
                 self.stacked_layout.setCurrentIndex(0)
                 self.map_widget.update_map()
+                self._sync_workspace_theme()
+
             case "btnNotifications":
                 self._set_active(name)
                 self.stacked_layout.setCurrentIndex(1)
                 self.notifications_page.load()
-                # immediately refresh badge after opening notifications (badge will clear after page marks read)
+                self._sync_workspace_theme()
                 try:
                     QTimer.singleShot(400, self.update_notif_badge)
                 except Exception:
                     pass
+
             case "btnHistory":
                 self._set_active(name)
                 self.stacked_layout.setCurrentIndex(2)
                 self.history_page.load()
+                self._sync_workspace_theme()
+
             case "btnSettings":
                 self._set_active(name)
                 self.settings_page.show_section("Account")
                 idx = self.stacked_layout.indexOf(self.settings_page)
                 if idx != -1:
                     self.stacked_layout.setCurrentIndex(idx)
+                self._sync_workspace_theme()
+
             case "btnInvite":
                 self._generate_invite()
+
             case "btnLogout":
                 self.logout_requested.emit()
                 self.close()
+
             case _:
                 self._set_active(name)
                 page_widget = self.blank_pages.get(name)
@@ -588,6 +594,7 @@ class MainWindow(QMainWindow):
                     idx = self.stacked_layout.indexOf(page_widget)
                     if idx != -1:
                         self.stacked_layout.setCurrentIndex(idx)
+                self._sync_workspace_theme()
 
     def _generate_invite(self):
         if not self.user.is_admin:
@@ -602,10 +609,6 @@ class MainWindow(QMainWindow):
             f"It expires in 48 hours and can only be used once."
         )
 
-    # ─────────────────────────────────────
-    # BACKEND / MAP HANDLERS
-    # ─────────────────────────────────────
-
     def node_added_callback(self, node_id):
         self.map_widget.update_map()
 
@@ -614,7 +617,6 @@ class MainWindow(QMainWindow):
             self.alert_system.show_alert_node(notif)
         if self.stacked_layout.currentWidget() == self.map_widget:
             self.map_widget.update_map()
-        # update badge immediately when backend reports a new notification
         try:
             self.update_notif_badge()
         except Exception:
@@ -633,6 +635,7 @@ class MainWindow(QMainWindow):
         self.stacked_layout.setCurrentIndex(0)
         self._set_active("btnMap")
         self.map_widget.center_on_node(node_id)
+        self._sync_workspace_theme()
 
     def update_notif_badge(self):
         try:
@@ -647,10 +650,6 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
 
-
-# ═══════════════════════════════════════════════════════
-# ENTRY POINT
-# ═══════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     database.init_db()
@@ -669,19 +668,14 @@ if __name__ == "__main__":
         main_window.show()
         print(f"Logged in: {user.list_info()}")
 
-        # Connect the global user_update signal so the running main window
-        # refreshes the current user's viewable nodes when a new node is added.
         try:
             import login as login_module
 
             def _on_user_update():
                 try:
-                    # refresh the user object (updates viewable_nodes for admins)
                     login_module.refresh_user_nodes(main_window.user)
-                    # propagate the updated user to widgets that cache it
                     try:
                         main_window.map_widget.user = main_window.user
-                        
                         main_window.map_widget.update_map()
                     except Exception:
                         pass
