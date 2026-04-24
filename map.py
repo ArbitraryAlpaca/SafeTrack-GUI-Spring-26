@@ -122,7 +122,7 @@ class MapDisplay(QWidget):
                         <img src="' + iconUrl + '" style="width: 50px; height: 50px;"/> \
                         <span style="position: absolute; \
                                         top: -5px; right: -5px; \
-                                        background: #4a4a4a; \
+                                        background: #b53131; \
                                         color: white; \
                                         border-radius: 50%; \
                                         width: 20px; height: 20px; \
@@ -158,7 +158,7 @@ class MapDisplay(QWidget):
                     folium.Circle(
                         radius=100,
                         location=cur_gps,
-                        color='grey',
+                        color='crimson',
                         fill=True
                     ).add_to(self.m)
                 folium.Marker(
