@@ -23,6 +23,8 @@ from simulating_nodes import Simulate  # for debugging only
 from settings import SettingsPage
 from history_log import HistoryLogPage
 
+from serial_utils import get_microcontroller_port
+
 
 # ═══════════════════════════════════════════════════════
 # CUSTOM WIDGETS
@@ -297,9 +299,9 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1200, 700)
         self.user = user
 
-        self.port = "COM7"
+        self.port = get_microcontroller_port()
         self.hrs = 48
-        monitor = Simulate(self.port, self.hrs)
+        monitor = Monitor(self.port, self.hrs) #Change to Monitor for real simulation
         monitor.start()
 
         self.setStyleSheet("QMainWindow { background-color: #060a13; }")
@@ -658,6 +660,11 @@ if __name__ == "__main__":
     adb.init_auth_db()
 
     app = QApplication(sys.argv)
+    
+    app.setOrganizationName("SafeTrack")
+    app.setApplicationName("SafeTrackMonitor")
+    app.setDesktopFileName("com.safetrack.monitor")
+    
     login_window = LoginWindow()
     main_window = None
 
